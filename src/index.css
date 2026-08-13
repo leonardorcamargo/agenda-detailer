@@ -1,0 +1,105 @@
+@import "tailwindcss";
+
+/* Remove spinner arrows from all number inputs */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.6);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 16px 4px rgba(59, 130, 246, 0.8);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 1.8s infinite ease-in-out;
+}
+
+@keyframes pulseEmerald {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6);
+  }
+  50% {
+    transform: scale(1.08);
+    box-shadow: 0 0 16px 4px rgba(16, 185, 129, 0.8);
+  }
+}
+
+.animate-pulse-emerald {
+  animation: pulseEmerald 1.8s infinite ease-in-out;
+}
+
+/* Print Styles for Service Order (OS) Document */
+@media print {
+  body * {
+    visibility: hidden !important;
+  }
+
+  #printable-os-modal,
+  #printable-os-modal * {
+    visibility: visible !important;
+  }
+
+  #printable-os-modal {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+    margin: 0 !important;
+    padding: 16px !important;
+    background: #ffffff !important;
+    color: #0f172a !important;
+    box-shadow: none !important;
+    border: none !important;
+    border-radius: 0 !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-clean-card {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #0f172a !important;
+  }
+
+  .print-text-dark {
+    color: #0f172a !important;
+  }
+
+  .print-text-muted {
+    color: #475569 !important;
+  }
+
+  .print-border {
+    border-color: #cbd5e1 !important;
+  }
+
+  .print-bg-light {
+    background-color: #f8fafc !important;
+  }
+
+  @page {
+    margin: 10mm;
+    size: A4 portrait;
+  }
+}
+
