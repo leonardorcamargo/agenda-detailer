@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { supabase } from './lib/supabase';
 import confetti from 'canvas-confetti';
 import { 
   ServiceOrder, 
@@ -45,7 +46,22 @@ import { PurchaseOrderModal } from './components/PurchaseOrderModal';
 
 export default function App() {
   // Auth & Navigation state
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  useEffect(() => {
+  supabase.auth.getSession().then(({ data }) => {
+    setIsAuthenticated(!!data.session);
+  });
+
+  const {
+    data: { subscription },
+  } = supabase.auth.onAuthStateChange((_event, session) => {
+    setIsAuthenticated(!!session);
+  });
+
+  return () => {
+    subscription.unsubscribe();
+  };
+}, []);
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 

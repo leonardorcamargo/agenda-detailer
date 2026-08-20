@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Car, Mail, Lock, Sparkles, ArrowRight, Store, Building2, CheckCircle2 } from 'lucide-react';
 import { DEMO_SAAS_TENANTS } from '../data/mockData';
+import { supabase } from '../lib/supabase';
 
 interface AuthViewProps {
   onLoginSuccess: (email: string, customTenant?: { name: string; category?: any }) => void;
@@ -13,17 +14,29 @@ export const AuthView: React.FC<AuthViewProps> = ({ onLoginSuccess }) => {
   const [shopName, setShopName] = useState('');
   const [shopCategory, setShopCategory] = useState<'Estética Automotiva' | 'Studio Detailer' | 'Lava Rápido Premium' | 'Oficina Mecânica'>('Estética Automotiva');
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (activeTab === 'signup' && shopName) {
-      onLoginSuccess(email || 'nova.loja@estetica.com', {
-        name: shopName,
-        category: shopCategory,
-      });
-    } else {
-      onLoginSuccess(email || 'contato@autoshine.com.br');
-    }
-  };
+ const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+
+  if (activeTab === 'signup' && shopName) {
+    onLoginSuccess(email || 'nova.loja@estetica.com', {
+      name: shopName,
+      category: shopCategory,
+    });
+    return;
+  }
+
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) {
+    alert(`Erro ao entrar: ${error.message}`);
+    return;
+  }
+
+  onLoginSuccess(email);
+};
 
   const handleDemoLogin = (demoEmail?: string) => {
     onLoginSuccess(demoEmail || 'contato@autoshine.com.br');
