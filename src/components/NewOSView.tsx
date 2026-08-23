@@ -324,14 +324,30 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
 
       vehicleId = createdVehicle.id;
     }
+const { data: lastOrder, error: numberError } = await supabase
+.from('service_orders')
+.select('os_number')
+.eq('company_id', companyId)
+.order('os_number', { ascending: false })
+.limit(1)
+.maybeSingle();
 
+if (numberError) {
+console.error('Erro ao calcular número da OS.', numberError);
+setLookupMessage('Não foi possível calcular o número da Ordem de Serviço.');
+return;
+}
+
+const realOSNumber = lastOrder?.os_number
+? Number(lastOrder.os_number) + 1
+: 1006;
     const { data: createdOrder, error: orderError } = await supabase
       .from('service_orders')
       .insert({
         company_id: companyId,
         customer_id: customerId,
         vehicle_id: vehicleId,
-        os_number: nextOSNumber,
+        os_number: realOSNumber,
         status: 'Aguardando',
         custom_description: customDescription.trim() || null,
         discount,
@@ -375,8 +391,8 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
     }
 
     const newOrder: ServiceOrder = {
-      id: String(nextOSNumber),
-      osNumber: nextOSNumber,
+     id: createdOrder.id,
+      osNumber: realOSNumber,
       createdAt: new Date().toISOString(),
       status: 'Aguardando',
       plate: cleanPlate,
