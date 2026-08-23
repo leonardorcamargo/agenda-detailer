@@ -47,7 +47,7 @@ import { PurchaseOrderModal } from './components/PurchaseOrderModal';
 export default function App() {
   // Auth & Navigation state
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
-  useEffect(() => {
+ useEffect(() => {
   supabase.auth.getSession().then(({ data }) => {
     setIsAuthenticated(!!data.session);
   });
@@ -58,9 +58,7 @@ export default function App() {
     setIsAuthenticated(!!session);
   });
 
-  return () => {
-    subscription.unsubscribe();
-  };
+  return () => subscription.unsubscribe();
 }, []);
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
@@ -71,6 +69,58 @@ export default function App() {
   const [productsCatalog, setProductsCatalog] = useState<ProductItem[]>(INITIAL_PRODUCTS_CATALOG);
   const [combosCatalog, setCombosCatalog] = useState<ServiceComboItem[]>(INITIAL_COMBOS_CATALOG);
   const [shopSettings, setShopSettings] = useState<ShopSettings>(INITIAL_SHOP_SETTINGS);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const loadCompany = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: membership, error: membershipError } = await supabase
+        .from('company_members')
+        .select('company_id')
+        .eq('user_id', user.id)
+        .eq('active', true)
+        .maybeSingle();
+
+      if (membershipError || !membership) {
+        console.error('Empresa vinculada não encontrada.', membershipError);
+        return;
+      }
+
+      const { data: company, error: companyError } = await supabase
+        .from('companies')
+        .select('id, name, subtitle, shop_category, phone, email, address, pix_key, owner_name, logo_url, accent_color, document, instagram')
+        .eq('id', membership.company_id)
+        .eq('active', true)
+        .maybeSingle();
+
+      if (companyError || !company) {
+        console.error('Não foi possível carregar a empresa.', companyError);
+        return;
+      }
+
+      setShopSettings({
+        id: company.id,
+        name: company.name,
+        subtitle: company.subtitle ?? '',
+        shopCategory: company.shop_category as ShopSettings['shopCategory'],
+        phone: company.phone ?? '',
+        address: company.address ?? '',
+        pixKey: company.pix_key ?? '',
+        ownerName: company.owner_name ?? user.email?.split('@')[0] ?? '',
+        email: company.email ?? user.email ?? '',
+        logoUrl: company.logo_url ?? '',
+        accentColor: (company.accent_color ?? 'blue') as ShopSettings['accentColor'],
+        cnpjCpf: company.document ?? '',
+        instagram: company.instagram ?? '',
+      });
+    };
+
+    void loadCompany();
+  }, [isAuthenticated]);
+
   const [expenses, setExpenses] = useState<ShopExpense[]>(INITIAL_EXPENSES);
   const [staffList, setStaffList] = useState<StaffMember[]>(INITIAL_STAFF);
 
