@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { ServiceOrder, ServiceItem, DamagePoint, OSService, OSProjectStep, PaymentMethod } from '../types';
-import { KNOWN_VEHICLES_DATABASE } from '../data/mockData';
+import { supabase } from '../lib/supabase';
 import { VehicleInspectionDiagram } from './VehicleInspectionDiagram';
 import { 
   Search, 
@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 
 interface NewOSViewProps {
+  companyId: string;
   servicesCatalog: ServiceItem[];
   nextOSNumber: number;
   onSaveOS: (order: ServiceOrder) => void;
@@ -28,6 +29,7 @@ interface NewOSViewProps {
 }
 
 export const NewOSView: React.FC<NewOSViewProps> = ({
+  companyId,
   servicesCatalog,
   nextOSNumber,
   onSaveOS,
@@ -88,37 +90,49 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
     setSelectedServices(selectedServices.filter((s) => s.serviceId !== serviceId));
   };
 
-  // Auto Lookup License Plate
-  const handleConsultarPlaca = () => {
+  // Consulta a placa no cadastro real da empresa
+  const handleConsultarPlaca = async () => {
     const cleanPlate = plate.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (!cleanPlate) {
       setLookupMessage('Por favor, informe uma placa para consultar.');
       return;
     }
 
-    // Check known database
-    if (KNOWN_VEHICLES_DATABASE[cleanPlate]) {
-      const known = KNOWN_VEHICLES_DATABASE[cleanPlate];
-      setBrand(known.brand);
-      setModel(known.model);
-      setColor(known.color);
-      setYear(known.year);
-      setClientName(known.clientName);
-      setClientPhone(known.clientPhone);
-      setLookupMessage(`Veículo localizado no histórico! (${known.totalVisits} visitas prévias)`);
-    } else {
-      // Simulate DENATRAN auto-lookup
-      const simulatedBrands = ['Volkswagen', 'Chevrolet', 'Toyota', 'Hyundai', 'Jeep', 'Ford'];
-      const simulatedModels = ['Golf TSI', 'Onix Turbo', 'Corolla Cross', 'HB20 Evolution', 'Compass Limited', 'Focus Titanium'];
-      const randomBrand = simulatedBrands[Math.floor(Math.random() * simulatedBrands.length)];
-      const randomModel = simulatedModels[Math.floor(Math.random() * simulatedModels.length)];
+    const { data: vehicle, error } = await supabase
+      .from('vehicles')
+      .select('id, plate, brand, model, color, year, customer:customers(name, phone)')
+      .eq('company_id', companyId)
+      .eq('plate', cleanPlate)
+      .eq('active', true)
+      .maybeSingle();
 
-      setBrand(randomBrand);
-      setModel(randomModel);
-      setColor('Cinza');
-      setYear('2022');
-      setLookupMessage('Placa consultada com sucesso via DENATRAN/SINESP! Dados preenchidos.');
+    if (error) {
+      console.error('Erro ao consultar veículo.', error);
+      setLookupMessage('Não foi possível consultar a placa agora.');
+      return;
     }
+
+    if (!vehicle) {
+      setBrand('');
+      setModel('');
+      setColor('');
+      setYear('');
+      setClientName('');
+      setClientPhone('');
+      setLookupMessage('Veículo não encontrado no cadastro. Preencha os dados para um novo veículo.');
+      return;
+    }
+
+    setPlate(vehicle.plate);
+    setBrand(vehicle.brand ?? '');
+    setModel(vehicle.model ?? '');
+    setColor(vehicle.color ?? '');
+    setYear(vehicle.year ?? '');
+
+    const customer = Array.isArray(vehicle.customer) ? vehicle.customer[0] : vehicle.customer;
+    setClientName(customer?.name ?? '');
+    setClientPhone(customer?.phone ?? '');
+    setLookupMessage('Veículo localizado no cadastro da empresa.');
   };
 
   // Service toggle selection
@@ -178,15 +192,137 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
   const totalValue = Math.max(0, subtotal - discount);
 
   // Submit Handler
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!companyId) {
+      setLookupMessage('Empresa não identificada. Entre novamente no sistema.');
+      return;
+    }
+
+    const cleanPlate = plate.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const cleanClientName = clientName.trim();
+    const cleanClientPhone = clientPhone.trim();
+
+    if (!cleanPlate || !cleanClientName) {
+      setLookupMessage('Informe ao menos a placa e o nome do cliente.');
+      return;
+    }
+
+    let customerId: string | null = null;
+
+    if (cleanClientPhone) {
+      const { data: existingCustomer, error } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('company_id', companyId)
+        .eq('phone', cleanClientPhone)
+        .eq('active', true)
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Erro ao localizar cliente.', error);
+        setLookupMessage('Não foi possível verificar o cliente.');
+        return;
+      }
+
+      customerId = existingCustomer?.id ?? null;
+    }
+
+    if (!customerId) {
+      const { data: existingCustomer, error } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('company_id', companyId)
+        .ilike('name', cleanClientName)
+        .eq('active', true)
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Erro ao localizar cliente pelo nome.', error);
+        setLookupMessage('Não foi possível verificar o cliente.');
+        return;
+      }
+
+      customerId = existingCustomer?.id ?? null;
+    }
+
+    if (!customerId) {
+      const { data: createdCustomer, error } = await supabase
+        .from('customers')
+        .insert({
+          company_id: companyId,
+          name: cleanClientName,
+          phone: cleanClientPhone || null,
+        })
+        .select('id')
+        .single();
+
+      if (error || !createdCustomer) {
+        console.error('Erro ao cadastrar cliente.', error);
+        setLookupMessage('Não foi possível cadastrar o cliente.');
+        return;
+      }
+
+      customerId = createdCustomer.id;
+    }
+
+    const { data: existingVehicle, error: vehicleLookupError } = await supabase
+      .from('vehicles')
+      .select('id')
+      .eq('company_id', companyId)
+      .eq('plate', cleanPlate)
+      .limit(1)
+      .maybeSingle();
+
+    if (vehicleLookupError) {
+      console.error('Erro ao localizar veículo.', vehicleLookupError);
+      setLookupMessage('Não foi possível verificar o veículo.');
+      return;
+    }
+
+    const vehicleData = {
+      customer_id: customerId,
+      plate: cleanPlate,
+      brand: brand.trim() || null,
+      model: model.trim() || null,
+      color: color.trim() || null,
+      year: year.trim() || null,
+      active: true,
+    };
+
+    if (existingVehicle) {
+      const { error } = await supabase
+        .from('vehicles')
+        .update(vehicleData)
+        .eq('id', existingVehicle.id)
+        .eq('company_id', companyId);
+
+      if (error) {
+        console.error('Erro ao atualizar veículo.', error);
+        setLookupMessage('Não foi possível atualizar o veículo.');
+        return;
+      }
+    } else {
+      const { error } = await supabase
+        .from('vehicles')
+        .insert({ company_id: companyId, ...vehicleData });
+
+      if (error) {
+        console.error('Erro ao cadastrar veículo.', error);
+        setLookupMessage('Não foi possível cadastrar o veículo.');
+        return;
+      }
+    }
 
     const newOrder: ServiceOrder = {
       id: String(nextOSNumber),
       osNumber: nextOSNumber,
       createdAt: new Date().toISOString(),
       status: 'Aguardando',
-      plate: plate.toUpperCase() || 'ABC1234',
+      plate: cleanPlate,
       brand: brand || 'Genérico',
       model: model || 'Veículo',
       color: color || 'Preto',

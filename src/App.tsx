@@ -573,6 +573,7 @@ setCurrentRole(membership.role);
 
             {activeTab === 'nova-os' && (
               <NewOSView
+                companyId={shopSettings.id ?? ''}
                 servicesCatalog={servicesCatalog}
                 nextOSNumber={nextOSNumber}
                 onSaveOS={handleSaveNewOS}
