@@ -293,7 +293,11 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
       active: true,
     };
 
+    let vehicleId: string;
+
     if (existingVehicle) {
+      vehicleId = existingVehicle.id;
+
       const { error } = await supabase
         .from('vehicles')
         .update(vehicleData)
@@ -306,13 +310,66 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
         return;
       }
     } else {
-      const { error } = await supabase
+      const { data: createdVehicle, error } = await supabase
         .from('vehicles')
-        .insert({ company_id: companyId, ...vehicleData });
+        .insert({ company_id: companyId, ...vehicleData })
+        .select('id')
+        .single();
 
-      if (error) {
+      if (error || !createdVehicle) {
         console.error('Erro ao cadastrar veículo.', error);
         setLookupMessage('Não foi possível cadastrar o veículo.');
+        return;
+      }
+
+      vehicleId = createdVehicle.id;
+    }
+
+    const { data: createdOrder, error: orderError } = await supabase
+      .from('service_orders')
+      .insert({
+        company_id: companyId,
+        customer_id: customerId,
+        vehicle_id: vehicleId,
+        os_number: nextOSNumber,
+        status: 'Aguardando',
+        custom_description: customDescription.trim() || null,
+        discount,
+        total_value: totalValue,
+        payment_method: paymentMethod,
+        payment_status: paymentStatus,
+      })
+      .select('id')
+      .single();
+
+    if (orderError || !createdOrder) {
+      console.error('Erro ao cadastrar Ordem de Serviço.', orderError);
+      setLookupMessage('Não foi possível salvar a Ordem de Serviço.');
+      return;
+    }
+
+    if (finalServices.length > 0) {
+      const { error: servicesError } = await supabase
+        .from('service_order_services')
+        .insert(
+          finalServices.map((service) => ({
+            service_order_id: createdOrder.id,
+            service_name: service.name,
+            unit_price: service.price || 0,
+            quantity: 1,
+          }))
+        );
+
+      if (servicesError) {
+        console.error('Erro ao salvar serviços da OS.', servicesError);
+
+        await supabase
+          .from('service_orders')
+          .delete()
+          .eq('id', createdOrder.id)
+          .eq('company_id', companyId);
+
+        setLookupMessage('Não foi possível salvar os serviços da Ordem de Serviço.');
         return;
       }
     }
