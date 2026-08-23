@@ -47,6 +47,7 @@ import { PurchaseOrderModal } from './components/PurchaseOrderModal';
 export default function App() {
   // Auth & Navigation state
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [currentRole, setCurrentRole] = useState<string | null>(null);
  useEffect(() => {
   supabase.auth.getSession().then(({ data }) => {
     setIsAuthenticated(!!data.session);
@@ -79,7 +80,7 @@ export default function App() {
 
       const { data: membership, error: membershipError } = await supabase
         .from('company_members')
-        .select('company_id')
+        .select('company_id, role')
         .eq('user_id', user.id)
         .eq('active', true)
         .maybeSingle();
@@ -88,7 +89,7 @@ export default function App() {
         console.error('Empresa vinculada não encontrada.', membershipError);
         return;
       }
-
+setCurrentRole(membership.role);
       const { data: company, error: companyError } = await supabase
         .from('companies')
         .select('id, name, subtitle, shop_category, phone, email, address, pix_key, owner_name, logo_url, accent_color, document, instagram')
