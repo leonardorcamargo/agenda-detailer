@@ -364,9 +364,20 @@ setCurrentRole(membership.role);
     setSelectedOrderForModal(newOrder);
   };
 
-  const handleUpdateOrderStatus = (orderId: string, newStatus: OSStatus) => {
+  const handleUpdateOrderStatus = async (orderId: string, newStatus: OSStatus) => {
     const targetOrder = orders.find((o) => o.id === orderId);
     const wasAlreadyFinalized = targetOrder?.status === 'Finalizado';
+
+    const { error } = await supabase
+      .from('service_orders')
+      .update({ status: newStatus })
+      .eq('id', orderId)
+      .eq('company_id', shopSettings.id);
+
+    if (error) {
+      console.error('Erro ao atualizar status da OS.', error);
+      return;
+    }
 
     setOrders((prev) =>
       prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
