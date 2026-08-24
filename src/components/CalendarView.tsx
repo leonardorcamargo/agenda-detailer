@@ -1261,12 +1261,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     onChange={(e) => setAptForm({ ...aptForm, paymentMethod: e.target.value as PaymentMethod })}
                     className="w-full bg-[#151e30] border border-[#23314a] rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:border-blue-500 cursor-pointer"
                   >
-                    <option value="Pix">Pix</option>
-                    <option value="Cartão de Crédito">Cartão de Crédito</option>
-                    <option value="Cartão de Débito">Cartão de Débito</option>
-                    <option value="Dinheiro">Dinheiro</option>
-                    <option value="Fiado">Fiado / A Prazo</option>
                     <option value="Pendente">Pendente</option>
+                    <option value="Pix">Pix</option>
+                    <option value="Dinheiro">Dinheiro</option>
+                    <option value="Cartão de Débito">Débito</option>
+                    <option value="Cartão de Crédito">Crédito</option>
+                    <option value="Crédito Parcelado">Crédito Parcelado</option>
+                    <option value="Boleto Parcelado">Boleto Parcelado</option>
+                    <option value="Fiado">Fiado</option>
                   </select>
                 </div>
 

@@ -906,10 +906,12 @@ const realOSNumber = lastOrder?.os_number
             >
               <option value="Pendente">Pendente</option>
               <option value="Pix">Pix</option>
-              <option value="Cartão de Crédito">Cartão de Crédito</option>
-              <option value="Cartão de Débito">Cartão de Débito</option>
               <option value="Dinheiro">Dinheiro</option>
-              <option value="Fiado">Fiado / A Prazo</option>
+              <option value="Cartão de Débito">Débito</option>
+              <option value="Cartão de Crédito">Crédito</option>
+              <option value="Crédito Parcelado">Crédito Parcelado</option>
+              <option value="Boleto Parcelado">Boleto Parcelado</option>
+              <option value="Fiado">Fiado</option>
             </select>
           </div>
 
