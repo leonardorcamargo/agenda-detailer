@@ -1,6 +1,6 @@
 export type OSStatus = 'Aguardando' | 'Em Execução' | 'Pronto para Entrega' | 'Finalizado';
 
-export type PaymentMethod = 'Cartão de Crédito' | 'Cartão de Débito' | 'Pix' | 'Dinheiro' | 'Fiado' | 'Pendente';
+export type PaymentMethod = 'Cartão de Crédito' | 'Cartão de Débito' | 'Pix' | 'Dinheiro' | 'Crédito Parcelado' | 'Boleto Parcelado' | 'Fiado' | 'Pendente';
 
 export interface DamagePoint {
   id: string;

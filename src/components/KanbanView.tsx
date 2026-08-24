@@ -220,20 +220,24 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                               Pagamento:
                             </span>
                             <select
-                              value={order.paymentStatus}
-                              onChange={(e: any) => onUpdatePaymentStatus?.(order.id, e.target.value)}
+                              value={order.paymentMethod}
+                              onChange={(e) => onUpdatePaymentMethod?.(order.id, e.target.value as PaymentMethod)}
                               className={`text-[10px] font-extrabold px-2 py-0.5 rounded-lg border focus:outline-none cursor-pointer ${
-                                order.paymentStatus === 'Pago'
-                                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                                  : order.paymentStatus === 'Fiado'
+                                order.paymentMethod === 'Pendente'
+                                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                  : order.paymentMethod === 'Fiado'
                                   ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
-                                  : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                                  : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                               }`}
                             >
                               <option value="Pendente" className="bg-[#121929] text-amber-400">Pendente</option>
-                              <option value="Pago" className="bg-[#121929] text-emerald-400">Pago ({order.paymentMethod})</option>
-                              <option value="Parcial" className="bg-[#121929] text-blue-400">Parcial</option>
-                              <option value="Fiado" className="bg-[#121929] text-purple-300">Fiado / A Prazo</option>
+                              <option value="Pix" className="bg-[#121929] text-emerald-400">Pix</option>
+                              <option value="Dinheiro" className="bg-[#121929] text-emerald-400">Dinheiro</option>
+                              <option value="Cartão de Débito" className="bg-[#121929] text-emerald-400">Débito</option>
+                              <option value="Cartão de Crédito" className="bg-[#121929] text-emerald-400">Crédito</option>
+                              <option value="Crédito Parcelado" className="bg-[#121929] text-emerald-400">Crédito Parcelado</option>
+                              <option value="Boleto Parcelado" className="bg-[#121929] text-emerald-400">Boleto Parcelado</option>
+                              <option value="Fiado" className="bg-[#121929] text-purple-300">Fiado</option>
                             </select>
                           </div>
 

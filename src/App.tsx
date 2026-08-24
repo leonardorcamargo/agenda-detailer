@@ -457,7 +457,18 @@ setCurrentRole(membership.role);
     }
   };
 
-  const handleUpdatePaymentStatus = (orderId: string, status: 'Pago' | 'Pendente' | 'Parcial' | 'Fiado') => {
+  const handleUpdatePaymentStatus = async (orderId: string, status: 'Pago' | 'Pendente' | 'Parcial' | 'Fiado') => {
+    const { error } = await supabase
+      .from('service_orders')
+      .update({ payment_status: status })
+      .eq('id', orderId)
+      .eq('company_id', shopSettings.id);
+
+    if (error) {
+      console.error('Erro ao atualizar status do pagamento.', error);
+      return;
+    }
+
     setOrders((prev) =>
       prev.map((o) => (o.id === orderId ? { ...o, paymentStatus: status } : o))
     );
@@ -466,7 +477,18 @@ setCurrentRole(membership.role);
     }
   };
 
-  const handleUpdatePaymentMethod = (orderId: string, method: PaymentMethod) => {
+  const handleUpdatePaymentMethod = async (orderId: string, method: PaymentMethod) => {
+    const { error } = await supabase
+      .from('service_orders')
+      .update({ payment_method: method })
+      .eq('id', orderId)
+      .eq('company_id', shopSettings.id);
+
+    if (error) {
+      console.error('Erro ao atualizar forma de pagamento.', error);
+      return;
+    }
+
     setOrders((prev) =>
       prev.map((o) => (o.id === orderId ? { ...o, paymentMethod: method } : o))
     );
