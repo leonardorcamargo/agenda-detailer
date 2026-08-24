@@ -72,8 +72,8 @@ export default function App() {
   const [productsCatalog, setProductsCatalog] = useState<ProductItem[]>(INITIAL_PRODUCTS_CATALOG);
   const [combosCatalog, setCombosCatalog] = useState<ServiceComboItem[]>(INITIAL_COMBOS_CATALOG);
   const [shopSettings, setShopSettings] = useState<ShopSettings>(INITIAL_SHOP_SETTINGS);
-const [orders, setOrders] = useState<ServiceOrder[]>(INITIAL_ORDERS);
- useEffect(() => {
+  const [orders, setOrders] = useState<ServiceOrder[]>(INITIAL_ORDERS);
+  useEffect(() => {
     if (!isAuthenticated || !shopSettings.id) return;
 
     const loadOrdersForCompany = async () => {
