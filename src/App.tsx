@@ -37,6 +37,7 @@ import { NewOSView } from './components/NewOSView';
 import { KanbanView } from './components/KanbanView';
 import { FinancialView } from './components/FinancialView';
 import { StaffView } from './components/StaffView';
+import { CustomersView } from './components/CustomersView';
 import { CatalogView } from './components/CatalogView';
 import { SettingsView } from './components/SettingsView';
 import { OSDetailModal } from './components/OSDetailModal';
@@ -217,21 +218,324 @@ setCurrentRole(membership.role);
   const lowStockCount = productsCatalog.filter((p) => p.currentStock <= p.minStock).length;
 
   // Calculate Next OS Number
+
+  useEffect(() => {
+    if (!isAuthenticated || !shopSettings.id) return;
+
+    const loadAppointmentsForCompany = async () => {
+      const { data, error } = await supabase
+        .from('appointments')
+        .select(`
+          id,
+          scheduled_at,
+          estimated_duration_minutes,
+          status,
+          notes,
+          estimated_value,
+          payment_method,
+          payment_status,
+          customer:customers(name, phone),
+          vehicle:vehicles(plate, brand, model),
+          staff:staff(name),
+          services:appointment_services(id, service_name, unit_price, quantity),
+
+        `)
+        .eq('company_id', shopSettings.id)
+        .order('scheduled_at', { ascending: true });
+
+      if (error) {
+        console.error('Erro ao carregar agendamentos.', error);
+        return;
+      }
+
+      const mappedAppointments: Appointment[] = (data ?? []).map((row: any) => {
+        const customer = Array.isArray(row.customer) ? row.customer[0] : row.customer;
+        const vehicle = Array.isArray(row.vehicle) ? row.vehicle[0] : row.vehicle;
+        const staff = Array.isArray(row.staff) ? row.staff[0] : row.staff;
+
+        const services = Array.isArray(row.services) ? row.services : [];
+        const scheduled = new Date(row.scheduled_at);
+
+        const yyyy = scheduled.getFullYear();
+        const mm = String(scheduled.getMonth() + 1).padStart(2, '0');
+        const dd = String(scheduled.getDate()).padStart(2, '0');
+        const hh = String(scheduled.getHours()).padStart(2, '0');
+        const min = String(scheduled.getMinutes()).padStart(2, '0');
+
+        return {
+          id: row.id,
+          clientName: customer?.name ?? '',
+          clientPhone: customer?.phone ?? '',
+          vehicleModel: [vehicle?.brand, vehicle?.model].filter(Boolean).join(' ') || '',
+          vehiclePlate: vehicle?.plate ?? '',
+          services: services.map((service: any) => service.service_name).filter(Boolean),
+          date: `${yyyy}-${mm}-${dd}`,
+          time: `${hh}:${min}`,
+          estimatedDurationHours: Number(row.estimated_duration_minutes ?? 120) / 60,
+          assignedDetailer: staff?.name ?? '',
+          notes: row.notes ?? '',
+          status: row.status,
+          estimatedValue: Number(row.estimated_value ?? 0),
+          convertedOSNumber: undefined,
+          paymentMethod: row.payment_method ?? 'Pendente',
+          paymentStatus: row.payment_status ?? 'Pendente',
+        };
+      });
+
+      setAppointments(mappedAppointments);
+    };
+
+    void loadAppointmentsForCompany();
+  }, [isAuthenticated, shopSettings.id]);
+
   const nextOSNumber = orders.length > 0 
     ? Math.max(...orders.map((o) => o.osNumber)) + 1 
     : 1001;
 
   // Calendar Handlers
-  const handleAddAppointment = (apt: Appointment) => {
-    setAppointments([apt, ...appointments]);
+  const resolveAppointmentRelations = async (apt: Appointment) => {
+    const companyId = shopSettings.id;
+    if (!companyId) throw new Error('Empresa não identificada.');
+
+    const cleanName = apt.clientName.trim();
+    const cleanPhone = apt.clientPhone.trim();
+    const cleanPlate = apt.vehiclePlate.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+    let customerId: string | null = null;
+
+    if (cleanPlate) {
+      const { data: currentVehicle, error } = await supabase
+        .from('vehicles')
+        .select('customer_id')
+        .eq('company_id', companyId)
+        .eq('plate', cleanPlate)
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      customerId = currentVehicle?.customer_id ?? null;
+    }
+
+    if (customerId) {
+      const { error } = await supabase
+        .from('customers')
+        .update({
+          name: cleanName,
+          phone: cleanPhone || null,
+        })
+        .eq('id', customerId)
+        .eq('company_id', companyId);
+
+      if (error) throw error;
+    }
+
+    if (!customerId && cleanPhone) {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('company_id', companyId)
+        .eq('phone', cleanPhone)
+        .eq('active', true)
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      customerId = data?.id ?? null;
+    }
+
+    if (!customerId && cleanName) {
+      const { data, error } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('company_id', companyId)
+        .ilike('name', cleanName)
+        .eq('active', true)
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      customerId = data?.id ?? null;
+    }
+
+    if (!customerId && cleanName) {
+      const { data, error } = await supabase
+        .from('customers')
+        .insert({
+          company_id: companyId,
+          name: cleanName,
+          phone: cleanPhone || null,
+        })
+        .select('id')
+        .single();
+      if (error || !data) throw error ?? new Error('Cliente não criado.');
+      customerId = data.id;
+    }
+
+    let vehicleId: string | null = null;
+    if (cleanPlate) {
+      const { data: existingVehicle, error } = await supabase
+        .from('vehicles')
+        .select('id')
+        .eq('company_id', companyId)
+        .eq('plate', cleanPlate)
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+
+      const vehicleParts = apt.vehicleModel.trim().split(/\s+/);
+      const brand = vehicleParts.shift() || null;
+      const model = vehicleParts.join(' ') || apt.vehicleModel.trim() || null;
+
+      if (existingVehicle) {
+        vehicleId = existingVehicle.id;
+        const { error: updateError } = await supabase
+          .from('vehicles')
+          .update({
+            customer_id: customerId,
+            brand,
+            model,
+            active: true,
+          })
+          .eq('id', existingVehicle.id)
+          .eq('company_id', companyId);
+        if (updateError) throw updateError;
+      } else {
+        const { data: createdVehicle, error: createError } = await supabase
+          .from('vehicles')
+          .insert({
+            company_id: companyId,
+            customer_id: customerId,
+            plate: cleanPlate,
+            brand,
+            model,
+            active: true,
+          })
+          .select('id')
+          .single();
+        if (createError || !createdVehicle) throw createError ?? new Error('Veículo não criado.');
+        vehicleId = createdVehicle.id;
+      }
+    }
+
+    let staffId: string | null = null;
+    if (apt.assignedDetailer) {
+      const { data, error } = await supabase
+        .from('staff')
+        .select('id')
+        .eq('company_id', companyId)
+        .eq('name', apt.assignedDetailer)
+        .eq('active', true)
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      staffId = data?.id ?? null;
+    }
+
+    return { companyId, customerId, vehicleId, staffId };
   };
 
-  const handleUpdateAppointment = (updatedApt: Appointment) => {
-    setAppointments(appointments.map((a) => (a.id === updatedApt.id ? updatedApt : a)));
+  const saveAppointmentServices = async (appointmentId: string, apt: Appointment) => {
+    const { error: deleteError } = await supabase
+      .from('appointment_services')
+      .delete()
+      .eq('appointment_id', appointmentId);
+    if (deleteError) throw deleteError;
+
+    if (apt.services.length === 0) return;
+
+    const rows = apt.services.map((serviceName) => {
+      const catalogService = servicesCatalog.find((service) => service.name === serviceName);
+      const customPriceMatch = serviceName.match(/\(R\$\s*(\d+(?:\.\d+)?)\)/);
+
+      return {
+        appointment_id: appointmentId,
+        service_id: catalogService?.id && /^[0-9a-f-]{36}$/i.test(catalogService.id) ? catalogService.id : null,
+        service_name: serviceName,
+        quantity: 1,
+        unit_price: catalogService?.defaultPrice ?? (customPriceMatch ? Number(customPriceMatch[1]) : 0),
+      };
+    });
+
+    const { error } = await supabase.from('appointment_services').insert(rows);
+    if (error) throw error;
   };
 
-  const handleDeleteAppointment = (id: string) => {
-    setAppointments(appointments.filter((a) => a.id !== id));
+  const handleAddAppointment = async (apt: Appointment) => {
+    try {
+      const { companyId, customerId, vehicleId, staffId } = await resolveAppointmentRelations(apt);
+      const scheduledAt = new Date(`${apt.date}T${apt.time}:00`).toISOString();
+
+      const { data: created, error } = await supabase
+        .from('appointments')
+        .insert({
+          company_id: companyId,
+          customer_id: customerId,
+          vehicle_id: vehicleId,
+          staff_id: staffId,
+          scheduled_at: scheduledAt,
+          estimated_duration_minutes: Math.round(apt.estimatedDurationHours * 60),
+          status: apt.status,
+          notes: apt.notes || null,
+          source: 'Agenda Detailer',
+          estimated_value: apt.estimatedValue,
+          payment_method: apt.paymentMethod || 'Pendente',
+          payment_status: apt.paymentStatus || 'Pendente',
+        })
+        .select('id')
+        .single();
+
+      if (error || !created) throw error ?? new Error('Agendamento não criado.');
+
+      await saveAppointmentServices(created.id, apt);
+      setAppointments([{ ...apt, id: created.id }, ...appointments]);
+    } catch (error) {
+      console.error('Erro ao criar agendamento.', error);
+    }
+  };
+
+  const handleUpdateAppointment = async (updatedApt: Appointment) => {
+    try {
+      const { companyId, customerId, vehicleId, staffId } = await resolveAppointmentRelations(updatedApt);
+      const scheduledAt = new Date(`${updatedApt.date}T${updatedApt.time}:00`).toISOString();
+
+      const { error } = await supabase
+        .from('appointments')
+        .update({
+          customer_id: customerId,
+          vehicle_id: vehicleId,
+          staff_id: staffId,
+          scheduled_at: scheduledAt,
+          estimated_duration_minutes: Math.round(updatedApt.estimatedDurationHours * 60),
+          status: updatedApt.status,
+          notes: updatedApt.notes || null,
+          estimated_value: updatedApt.estimatedValue,
+          payment_method: updatedApt.paymentMethod || 'Pendente',
+          payment_status: updatedApt.paymentStatus || 'Pendente',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', updatedApt.id)
+        .eq('company_id', companyId);
+
+      if (error) throw error;
+
+      await saveAppointmentServices(updatedApt.id, updatedApt);
+      setAppointments(appointments.map((a) => (a.id === updatedApt.id ? updatedApt : a)));
+    } catch (error) {
+      console.error('Erro ao atualizar agendamento.', error);
+    }
+  };
+
+  const handleDeleteAppointment = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('appointments')
+        .delete()
+        .eq('id', id)
+        .eq('company_id', shopSettings.id);
+
+      if (error) throw error;
+      setAppointments(appointments.filter((a) => a.id !== id));
+    } catch (error) {
+      console.error('Erro ao excluir agendamento.', error);
+    }
   };
 
   const handleConvertAppointmentToOS = (apt: Appointment) => {
@@ -664,6 +968,7 @@ setCurrentRole(membership.role);
 
             {activeTab === 'agendamento' && (
               <CalendarView
+                companyId={shopSettings.id ?? ''}
                 appointments={appointments}
                 dailyNotes={dailyNotes}
                 staffWorkLogs={staffWorkLogs}
@@ -702,6 +1007,10 @@ setCurrentRole(membership.role);
                 onUpdatePaymentStatus={handleUpdatePaymentStatus}
                 onUpdatePaymentMethod={handleUpdatePaymentMethod}
               />
+            )}
+
+            {activeTab === 'clientes' && (
+              <CustomersView companyId={shopSettings.id ?? ''} />
             )}
 
             {activeTab === 'financeiro' && (

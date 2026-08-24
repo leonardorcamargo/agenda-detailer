@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { supabase } from '../lib/supabase';
 import { 
   Appointment, 
   DailyCalendarNote, 
@@ -38,6 +39,7 @@ import {
 } from 'lucide-react';
 
 interface CalendarViewProps {
+  companyId: string;
   appointments: Appointment[];
   dailyNotes: DailyCalendarNote[];
   staffWorkLogs: StaffWorkLog[];
@@ -55,6 +57,7 @@ interface CalendarViewProps {
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
+  companyId,
   appointments,
   dailyNotes,
   staffWorkLogs,
@@ -88,6 +91,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Filter for appointment search
   const [searchTerm, setSearchTerm] = useState('');
+  const [plateLookupMessage, setPlateLookupMessage] = useState<string | null>(null);
+  const [isPlateLookupLoading, setIsPlateLookupLoading] = useState(false);
 
   // Form states
   const [aptForm, setAptForm] = useState<Partial<Appointment>>({
@@ -114,6 +119,65 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   const [customAptServiceName, setCustomAptServiceName] = useState('');
   const [customAptServicePrice, setCustomAptServicePrice] = useState<number | ''>('');
+
+  const handleLookupAppointmentPlate = async () => {
+    const cleanPlate = (aptForm.vehiclePlate || '')
+      .trim()
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '');
+
+    if (!cleanPlate) {
+      setPlateLookupMessage('Informe uma placa para consultar.');
+      return;
+    }
+
+    if (!companyId) {
+      setPlateLookupMessage('Empresa não identificada.');
+      return;
+    }
+
+    setIsPlateLookupLoading(true);
+    setPlateLookupMessage(null);
+
+    const { data: vehicle, error } = await supabase
+      .from('vehicles')
+      .select('plate, brand, model, customer:customers(name, phone)')
+      .eq('company_id', companyId)
+      .eq('plate', cleanPlate)
+      .eq('active', true)
+      .maybeSingle();
+
+    setIsPlateLookupLoading(false);
+
+    if (error) {
+      console.error('Erro ao consultar placa no agendamento.', error);
+      setPlateLookupMessage('Não foi possível consultar a placa agora.');
+      return;
+    }
+
+    if (!vehicle) {
+      setAptForm({
+        ...aptForm,
+        vehiclePlate: cleanPlate,
+      });
+      setPlateLookupMessage('Veículo não encontrado. Preencha os dados manualmente.');
+      return;
+    }
+
+    const customer = Array.isArray(vehicle.customer)
+      ? vehicle.customer[0]
+      : vehicle.customer;
+
+    setAptForm({
+      ...aptForm,
+      vehiclePlate: vehicle.plate ?? cleanPlate,
+      vehicleModel: [vehicle.brand, vehicle.model].filter(Boolean).join(' '),
+      clientName: customer?.name ?? '',
+      clientPhone: customer?.phone ?? '',
+    });
+
+    setPlateLookupMessage('Veículo e cliente encontrados no cadastro.');
+  };
 
   const handleAddCustomAptService = () => {
     if (!customAptServiceName.trim()) return;
@@ -196,6 +260,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   // Open Add Appointment Modal
   const handleOpenAddApt = (dateStr?: string) => {
     setEditingApt(null);
+    setPlateLookupMessage(null);
     setAptForm({
       clientName: '',
       clientPhone: '',
@@ -1055,13 +1120,31 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   <label className="block text-xs font-bold text-slate-300 mb-1">
                     Placa do Veículo
                   </label>
-                  <input
-                    type="text"
-                    placeholder="Ex: ABC-1234"
-                    value={aptForm.vehiclePlate}
-                    onChange={(e) => setAptForm({ ...aptForm, vehiclePlate: e.target.value })}
-                    className="w-full bg-[#111827] border border-[#23314a] rounded-xl px-3 py-2 text-xs text-white uppercase focus:outline-none focus:border-blue-500 font-mono"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Ex: ABC-1234"
+                      value={aptForm.vehiclePlate}
+                      onChange={(e) => {
+                        setAptForm({ ...aptForm, vehiclePlate: e.target.value.toUpperCase() });
+                        setPlateLookupMessage(null);
+                      }}
+                      className="min-w-0 flex-1 bg-[#111827] border border-[#23314a] rounded-xl px-3 py-2 text-xs text-white uppercase focus:outline-none focus:border-blue-500 font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleLookupAppointmentPlate}
+                      disabled={isPlateLookupLoading}
+                      className="shrink-0 bg-blue-600 hover:bg-blue-500 disabled:opacity-60 text-white font-bold text-[11px] px-3 py-2 rounded-xl transition-colors cursor-pointer"
+                    >
+                      {isPlateLookupLoading ? 'Consultando...' : 'Consultar placa'}
+                    </button>
+                  </div>
+                  {plateLookupMessage && (
+                    <p className="text-[11px] text-blue-400 mt-1.5">
+                      {plateLookupMessage}
+                    </p>
+                  )}
                 </div>
               </div>
 

@@ -100,7 +100,7 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
 
     const { data: vehicle, error } = await supabase
       .from('vehicles')
-      .select('id, plate, brand, model, color, year, customer:customers(name, phone)')
+      .select('id, customer_id, plate, brand, model, color, year, customer:customers(name, phone)')
       .eq('company_id', companyId)
       .eq('plate', cleanPlate)
       .eq('active', true)
@@ -211,7 +211,40 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
 
     let customerId: string | null = null;
 
-    if (cleanClientPhone) {
+    const { data: vehicleOwnerLookup, error: vehicleOwnerLookupError } = await supabase
+      .from('vehicles')
+      .select('customer_id')
+      .eq('company_id', companyId)
+      .eq('plate', cleanPlate)
+      .limit(1)
+      .maybeSingle();
+
+    if (vehicleOwnerLookupError) {
+      console.error('Erro ao verificar proprietário atual do veículo.', vehicleOwnerLookupError);
+      setLookupMessage('Não foi possível verificar o proprietário atual do veículo.');
+      return;
+    }
+
+    customerId = vehicleOwnerLookup?.customer_id ?? null;
+
+    if (customerId) {
+      const { error: updateCustomerError } = await supabase
+        .from('customers')
+        .update({
+          name: cleanClientName,
+          phone: cleanClientPhone || null,
+        })
+        .eq('id', customerId)
+        .eq('company_id', companyId);
+
+      if (updateCustomerError) {
+        console.error('Erro ao atualizar cliente vinculado ao veículo.', updateCustomerError);
+        setLookupMessage('Não foi possível atualizar os dados do cliente.');
+        return;
+      }
+    }
+
+    if (!customerId && cleanClientPhone) {
       const { data: existingCustomer, error } = await supabase
         .from('customers')
         .select('id')
@@ -271,7 +304,7 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
 
     const { data: existingVehicle, error: vehicleLookupError } = await supabase
       .from('vehicles')
-      .select('id')
+      .select('id, customer_id')
       .eq('company_id', companyId)
       .eq('plate', cleanPlate)
       .limit(1)
