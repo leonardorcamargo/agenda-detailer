@@ -65,12 +65,89 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
   // Core App Data State
-  const [orders, setOrders] = useState<ServiceOrder[]>(INITIAL_ORDERS);
+
+
+
   const [servicesCatalog, setServicesCatalog] = useState<ServiceItem[]>(INITIAL_SERVICES_CATALOG);
   const [productsCatalog, setProductsCatalog] = useState<ProductItem[]>(INITIAL_PRODUCTS_CATALOG);
   const [combosCatalog, setCombosCatalog] = useState<ServiceComboItem[]>(INITIAL_COMBOS_CATALOG);
   const [shopSettings, setShopSettings] = useState<ShopSettings>(INITIAL_SHOP_SETTINGS);
+const [orders, setOrders] = useState<ServiceOrder[]>(INITIAL_ORDERS);
+ useEffect(() => {
+    if (!isAuthenticated || !shopSettings.id) return;
 
+    const loadOrdersForCompany = async () => {
+      const { data, error } = await supabase
+        .from('service_orders')
+        .select(`
+          id,
+          os_number,
+          status,
+          custom_description,
+          discount,
+          total_value,
+          payment_method,
+          payment_status,
+          created_at,
+          customer:customers(name, phone),
+          vehicle:vehicles(plate, brand, model, color, year),
+          services:service_order_services(id, service_name, unit_price, quantity)
+        `)
+        .eq('company_id', shopSettings.id)
+        .order('os_number', { ascending: false });
+
+      if (error) {
+        console.error('Erro ao carregar Ordens de Serviço.', error);
+        return;
+      }
+
+      const mappedOrders: ServiceOrder[] = (data ?? []).map((row: any) => {
+        const customer = Array.isArray(row.customer) ? row.customer[0] : row.customer;
+        const vehicle = Array.isArray(row.vehicle) ? row.vehicle[0] : row.vehicle;
+        const services = Array.isArray(row.services) ? row.services : [];
+
+        return {
+          id: row.id,
+          osNumber: Number(row.os_number),
+          createdAt: row.created_at,
+          status: row.status,
+          plate: vehicle?.plate ?? '',
+          brand: vehicle?.brand ?? '',
+          model: vehicle?.model ?? '',
+          color: vehicle?.color ?? '',
+          year: vehicle?.year ?? '',
+          clientName: customer?.name ?? '',
+          clientPhone: customer?.phone ?? '',
+          fuelLevel: 'Meio Tanque',
+          damages: [],
+          checklistItems: {
+            riscosPintura: false,
+            mossasAmassados: false,
+            vidroTrincado: false,
+            rodasRaladas: false,
+            pertencesPessoais: false,
+            pneuEstepeOk: false,
+          },
+          inspectionNotes: '',
+          services: services.map((service: any) => ({
+            serviceId: service.id,
+            name: service.service_name,
+            price: Number(service.unit_price ?? 0),
+          })),
+          discount: Number(row.discount ?? 0),
+          totalValue: Number(row.total_value ?? 0),
+          customDescription: row.custom_description ?? '',
+          projectSteps: [],
+          paymentMethod: row.payment_method,
+          paymentStatus: row.payment_status,
+        };
+      });
+
+      setOrders(mappedOrders);
+    };
+
+    void loadOrdersForCompany();
+  }, [isAuthenticated, shopSettings.id]);
   useEffect(() => {
     if (!isAuthenticated) return;
 
