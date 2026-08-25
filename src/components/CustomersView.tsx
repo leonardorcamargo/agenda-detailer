@@ -12,7 +12,23 @@ interface CustomerVehicle {
   color: string | null;
   year: string | null;
 }
+interface VehicleDraft {
+  plate: string;
+  brand: string;
+  model: string;
+  color: string;
+  year: string;
+  notes: string;
+}
 
+const EMPTY_VEHICLE_DRAFT: VehicleDraft = {
+  plate: '',
+  brand: '',
+  model: '',
+  color: '',
+  year: '',
+  notes: '',
+};
 interface CustomerRecord {
   id: string;
   name: string;
@@ -49,6 +65,10 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ companyId }) => {
   const [savingNewCustomer, setSavingNewCustomer] = useState(false);
   const [isNewCustomerOpen, setIsNewCustomerOpen] = useState(false);
   const [newCustomerPhoto, setNewCustomerPhoto] = useState<File | null>(null);
+  const [newCustomerVehicles, setNewCustomerVehicles] = useState<VehicleDraft[]>([]);
+  const [newVehicleDraft, setNewVehicleDraft] = useState<VehicleDraft>(EMPTY_VEHICLE_DRAFT);
+  const [editingVehicleDraft, setEditingVehicleDraft] = useState<VehicleDraft>(EMPTY_VEHICLE_DRAFT);
+  const [savingVehicle, setSavingVehicle] = useState(false);
   const [newCustomer, setNewCustomer] = useState({
     name: '',
     phone: '',
@@ -114,8 +134,108 @@ export const CustomersView: React.FC<CustomersViewProps> = ({ companyId }) => {
       ].some((value) => value.toLowerCase().includes(q));
     });
   }, [customers, search]);
+  const normalizePlate = (plate: string) =>
+  plate.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
 
-  const handleCreateCustomer = async () => {
+  const addVehicleDraftToNewCustomer = () => {
+  const plate = normalizePlate(newVehicleDraft.plate);
+
+  if (!plate) {
+    setMessage('Informe a placa do veículo.');
+    return;
+  }
+
+  if (
+    newCustomerVehicles.some(
+      (vehicle) => normalizePlate(vehicle.plate) === plate
+    )
+  ) {
+    setMessage('Esta placa já foi adicionada ao cliente.');
+    return;
+  }
+
+  setNewCustomerVehicles([
+    ...newCustomerVehicles,
+    {
+      ...newVehicleDraft,
+      plate,
+    },
+  ]);
+
+  setNewVehicleDraft(EMPTY_VEHICLE_DRAFT);
+  setMessage(null);
+};
+const handleAddVehicleToEditingCustomer = async () => {
+  if (!editing || !companyId || savingVehicle) return;
+
+  const plate = normalizePlate(editingVehicleDraft.plate);
+
+  if (!plate) {
+    setMessage('Informe a placa do veículo.');
+    return;
+  }
+
+  setSavingVehicle(true);
+
+  const { data: existingVehicle, error: lookupError } = await supabase
+    .from('vehicles')
+    .select('id, customer_id, plate')
+    .eq('company_id', companyId)
+    .eq('plate', plate)
+    .limit(1)
+    .maybeSingle();
+
+  if (lookupError) {
+    setSavingVehicle(false);
+    setMessage('Não foi possível verificar a placa.');
+    return;
+  }
+
+  if (existingVehicle) {
+    setSavingVehicle(false);
+
+    setMessage(
+      existingVehicle.customer_id === editing.id
+        ? 'Este veículo já está vinculado a este cliente.'
+        : 'Esta placa já está vinculada a outro cliente.'
+    );
+
+    return;
+  }
+
+  const { data: createdVehicle, error } = await supabase
+    .from('vehicles')
+    .insert({
+      company_id: companyId,
+      customer_id: editing.id,
+      plate,
+      brand: editingVehicleDraft.brand.trim() || null,
+      model: editingVehicleDraft.model.trim() || null,
+      color: editingVehicleDraft.color.trim() || null,
+      year: editingVehicleDraft.year.trim() || null,
+      notes: editingVehicleDraft.notes.trim() || null,
+      active: true,
+    })
+    .select('id, plate, brand, model, color, year')
+    .single();
+
+  setSavingVehicle(false);
+
+  if (error || !createdVehicle) {
+    setMessage('Não foi possível adicionar o veículo.');
+    return;
+  }
+
+  setEditing({
+    ...editing,
+    vehicles: [...(editing.vehicles ?? []), createdVehicle as CustomerVehicle],
+  });
+
+  setEditingVehicleDraft(EMPTY_VEHICLE_DRAFT);
+  setMessage('Veículo vinculado ao cliente com sucesso.');
+  await loadCustomers();
+};
+    const handleCreateCustomer = async () => {
    if (!companyId || savingNewCustomer) return;
 setSavingNewCustomer(true);
 
@@ -177,7 +297,29 @@ setSavingNewCustomer(true);
         return;
       }
     }
+      const vehiclePlates = newCustomerVehicles
+  .map((vehicle) => normalizePlate(vehicle.plate))
+  .filter(Boolean);
 
+if (vehiclePlates.length > 0) {
+  const { data: existingVehicles, error: vehicleLookupError } = await supabase
+    .from('vehicles')
+    .select('plate')
+    .eq('company_id', companyId)
+    .in('plate', vehiclePlates);
+
+  if (vehicleLookupError) {
+    setMessage('Não foi possível verificar os veículos informados.');
+    setSavingNewCustomer(false);
+    return;
+  }
+
+  if ((existingVehicles ?? []).length > 0) {
+    setMessage(`A placa ${existingVehicles![0].plate} já está cadastrada no sistema.`);
+    setSavingNewCustomer(false);
+    return;
+  }
+}
     const { data: created, error } = await supabase
       .from('customers')
       .insert({
@@ -199,7 +341,30 @@ setSavingNewCustomer(true);
       setSavingNewCustomer(false);
       return;
     }
+     if (newCustomerVehicles.length > 0) {
+  const vehicleRows = newCustomerVehicles.map((vehicle) => ({
+    company_id: companyId,
+    customer_id: created.id,
+    plate: normalizePlate(vehicle.plate),
+    brand: vehicle.brand.trim() || null,
+    model: vehicle.model.trim() || null,
+    color: vehicle.color.trim() || null,
+    year: vehicle.year.trim() || null,
+    notes: vehicle.notes.trim() || null,
+    active: true,
+  }));
 
+  const { error: vehicleInsertError } = await supabase
+    .from('vehicles')
+    .insert(vehicleRows);
+
+  if (vehicleInsertError) {
+    console.error('Erro ao cadastrar veículos.', vehicleInsertError);
+    setMessage('Cliente criado, mas não foi possível cadastrar os veículos.');
+    setSavingNewCustomer(false);
+    return;
+  }
+}
     if (newCustomerPhoto) {
       try {
         const compressedPhoto = await compressProfilePhoto(newCustomerPhoto);
@@ -579,7 +744,130 @@ setSavingNewCustomer(true);
                   A foto será reduzida automaticamente para WebP, até 600x600 px e 500 KB.
                 </p>
               </div>
+              <div className="sm:col-span-2 bg-[#101726] border border-[#293a58] rounded-xl p-3 space-y-3">
+  <div>
+    <label className="block text-xs font-bold text-slate-300">
+      Veículos
+    </label>
+    <p className="text-[10px] text-slate-500 mt-0.5">
+      Cadastre um ou mais veículos deste cliente.
+    </p>
+  </div>
 
+  {newCustomerVehicles.length > 0 && (
+    <div className="flex flex-wrap gap-2">
+      {newCustomerVehicles.map((vehicle, index) => (
+        <div
+          key={`${vehicle.plate}-${index}`}
+          className="inline-flex items-center gap-2 bg-[#141c2b] border border-[#30415f] rounded-lg px-2.5 py-1.5 text-[11px] text-slate-300"
+        >
+          <Car className="w-3.5 h-3.5 text-blue-400" />
+          <strong className="text-white">{vehicle.plate}</strong>
+          <span>
+            {[vehicle.brand, vehicle.model].filter(Boolean).join(' ')}
+          </span>
+
+          <button
+            type="button"
+            onClick={() =>
+              setNewCustomerVehicles(
+                newCustomerVehicles.filter((_, i) => i !== index)
+              )
+            }
+            className="text-rose-400 hover:text-rose-300"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      ))}
+    </div>
+  )}
+
+  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+    <input
+      value={newVehicleDraft.plate}
+      onChange={(e) =>
+        setNewVehicleDraft({
+          ...newVehicleDraft,
+          plate: e.target.value.toUpperCase(),
+        })
+      }
+      placeholder="Placa *"
+      className="bg-[#141c2b] border border-[#293a58] rounded-lg px-2.5 py-2 text-xs text-white uppercase"
+    />
+
+    <input
+      value={newVehicleDraft.brand}
+      onChange={(e) =>
+        setNewVehicleDraft({
+          ...newVehicleDraft,
+          brand: e.target.value,
+        })
+      }
+      placeholder="Marca"
+      className="bg-[#141c2b] border border-[#293a58] rounded-lg px-2.5 py-2 text-xs text-white"
+    />
+
+    <input
+      value={newVehicleDraft.model}
+      onChange={(e) =>
+        setNewVehicleDraft({
+          ...newVehicleDraft,
+          model: e.target.value,
+        })
+      }
+      placeholder="Modelo"
+      className="bg-[#141c2b] border border-[#293a58] rounded-lg px-2.5 py-2 text-xs text-white"
+    />
+
+    <input
+      value={newVehicleDraft.color}
+      onChange={(e) =>
+        setNewVehicleDraft({
+          ...newVehicleDraft,
+          color: e.target.value,
+        })
+      }
+      placeholder="Cor"
+      className="bg-[#141c2b] border border-[#293a58] rounded-lg px-2.5 py-2 text-xs text-white"
+    />
+
+    <input
+      value={newVehicleDraft.year}
+      onChange={(e) =>
+        setNewVehicleDraft({
+          ...newVehicleDraft,
+          year: e.target.value,
+        })
+      }
+      placeholder="Ano"
+      className="bg-[#141c2b] border border-[#293a58] rounded-lg px-2.5 py-2 text-xs text-white"
+    />
+  </div>
+
+  <div className="flex gap-2">
+    <input
+      value={newVehicleDraft.notes}
+      onChange={(e) =>
+        setNewVehicleDraft({
+          ...newVehicleDraft,
+          notes: e.target.value,
+        })
+      }
+      placeholder="Observação do veículo (opcional)"
+      className="flex-1 bg-[#141c2b] border border-[#293a58] rounded-lg px-2.5 py-2 text-xs text-white"
+    />
+
+    <button
+      type="button"
+      onClick={addVehicleDraftToNewCustomer}
+      className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-3 py-2 text-xs font-bold"
+    >
+      <Plus className="w-3.5 h-3.5" />
+      Adicionar
+    </button>
+  </div>
+</div>
               <div className="sm:col-span-2">
                 <label className="block text-xs font-bold text-slate-300 mb-1">Observações / Discriminação</label>
                 <textarea rows={4} value={newCustomer.notes} onChange={(e) => setNewCustomer({ ...newCustomer, notes: e.target.value })} placeholder="Ex: excelente cliente, atenção com prazo, histórico de atraso..." className="w-full bg-[#101726] border border-[#293a58] rounded-xl px-3 py-2 text-xs text-white resize-y" />
@@ -669,6 +957,117 @@ $      {editing && (
                 </div>
                 <p className="text-[10px] text-slate-500 mt-1.5">Redução automática para até 600×600 px e 500 KB.</p>
               </div>
+              <div className="sm:col-span-2 bg-[#101726] border border-[#293a58] rounded-xl p-3 space-y-3">
+  <div>
+    <label className="block text-xs font-bold text-slate-300">
+      Veículos vinculados
+    </label>
+    <p className="text-[10px] text-slate-500 mt-0.5">
+      Adicione outro veículo diretamente ao perfil deste cliente.
+    </p>
+  </div>
+
+  {(editing.vehicles ?? []).length > 0 && (
+    <div className="flex flex-wrap gap-2">
+      {editing.vehicles.map((vehicle) => (
+        <span
+          key={vehicle.id}
+          className="inline-flex items-center gap-1.5 bg-[#141c2b] border border-[#30415f] rounded-lg px-2.5 py-1.5 text-[11px] text-slate-300"
+        >
+          <Car className="w-3.5 h-3.5 text-blue-400" />
+          <strong className="text-white">{vehicle.plate}</strong>
+          {[vehicle.brand, vehicle.model].filter(Boolean).join(' ')}
+        </span>
+      ))}
+    </div>
+  )}
+
+  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+    <input
+      value={editingVehicleDraft.plate}
+      onChange={(e) =>
+        setEditingVehicleDraft({
+          ...editingVehicleDraft,
+          plate: e.target.value.toUpperCase(),
+        })
+      }
+      placeholder="Placa *"
+      className="bg-[#141c2b] border border-[#293a58] rounded-lg px-2.5 py-2 text-xs text-white uppercase"
+    />
+
+    <input
+      value={editingVehicleDraft.brand}
+      onChange={(e) =>
+        setEditingVehicleDraft({
+          ...editingVehicleDraft,
+          brand: e.target.value,
+        })
+      }
+      placeholder="Marca"
+      className="bg-[#141c2b] border border-[#293a58] rounded-lg px-2.5 py-2 text-xs text-white"
+    />
+
+    <input
+      value={editingVehicleDraft.model}
+      onChange={(e) =>
+        setEditingVehicleDraft({
+          ...editingVehicleDraft,
+          model: e.target.value,
+        })
+      }
+      placeholder="Modelo"
+      className="bg-[#141c2b] border border-[#293a58] rounded-lg px-2.5 py-2 text-xs text-white"
+    />
+
+    <input
+      value={editingVehicleDraft.color}
+      onChange={(e) =>
+        setEditingVehicleDraft({
+          ...editingVehicleDraft,
+          color: e.target.value,
+        })
+      }
+      placeholder="Cor"
+      className="bg-[#141c2b] border border-[#293a58] rounded-lg px-2.5 py-2 text-xs text-white"
+    />
+
+    <input
+      value={editingVehicleDraft.year}
+      onChange={(e) =>
+        setEditingVehicleDraft({
+          ...editingVehicleDraft,
+          year: e.target.value,
+        })
+      }
+      placeholder="Ano"
+      className="bg-[#141c2b] border border-[#293a58] rounded-lg px-2.5 py-2 text-xs text-white"
+    />
+  </div>
+
+  <div className="flex gap-2">
+    <input
+      value={editingVehicleDraft.notes}
+      onChange={(e) =>
+        setEditingVehicleDraft({
+          ...editingVehicleDraft,
+          notes: e.target.value,
+        })
+      }
+      placeholder="Observação do veículo (opcional)"
+      className="flex-1 bg-[#141c2b] border border-[#293a58] rounded-lg px-2.5 py-2 text-xs text-white"
+    />
+
+    <button
+      type="button"
+      disabled={savingVehicle}
+      onClick={handleAddVehicleToEditingCustomer}
+      className="inline-flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white rounded-lg px-3 py-2 text-xs font-bold"
+    >
+      <Plus className="w-3.5 h-3.5" />
+      {savingVehicle ? 'Salvando...' : 'Adicionar veículo'}
+    </button>
+  </div>
+</div>
               <div className="sm:col-span-2 bg-[#101726] border border-[#293a58] rounded-xl p-3">
                 <label className="block text-xs font-bold text-slate-300 mb-1">Mesclar cliente duplicado</label>
                 <p className="text-[10px] text-slate-500 mb-2">Transfere veículos, agendamentos e OS para outro perfil e desativa este cadastro.</p>
