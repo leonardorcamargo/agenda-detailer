@@ -237,7 +237,7 @@ setCurrentRole(membership.role);
           customer:customers(name, phone),
           vehicle:vehicles(plate, brand, model),
           staff:staff(name),
-          services:appointment_services(id, service_name, unit_price, quantity),
+          services:appointment_services(id, service_name, unit_price, quantity)
 
         `)
         .eq('company_id', shopSettings.id)
