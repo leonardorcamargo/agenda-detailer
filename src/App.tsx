@@ -49,6 +49,7 @@ export default function App() {
   // Auth & Navigation state
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [currentRole, setCurrentRole] = useState<string | null>(null);
+  const [companyId, setCompanyId] = useState<string>('');
  useEffect(() => {
   supabase.auth.getSession().then(({ data }) => {
     setIsAuthenticated(!!data.session);
@@ -75,7 +76,7 @@ export default function App() {
   const [shopSettings, setShopSettings] = useState<ShopSettings>(INITIAL_SHOP_SETTINGS);
   const [orders, setOrders] = useState<ServiceOrder[]>(INITIAL_ORDERS);
   useEffect(() => {
-    if (!isAuthenticated || !shopSettings.id) return;
+    if (!isAuthenticated || !companyId) return;
 
     const loadOrdersForCompany = async () => {
       const { data, error } = await supabase
@@ -94,7 +95,7 @@ export default function App() {
           vehicle:vehicles(plate, brand, model, color, year),
           services:service_order_services(id, service_name, unit_price, quantity)
         `)
-        .eq('company_id', shopSettings.id)
+        .eq('company_id', companyId)
         .order('os_number', { ascending: false });
 
       if (error) {
@@ -148,7 +149,7 @@ export default function App() {
     };
 
     void loadOrdersForCompany();
-  }, [isAuthenticated, shopSettings.id]);
+  }, [isAuthenticated, companyId]);
   useEffect(() => {
     if (!isAuthenticated) return;
 
@@ -168,6 +169,7 @@ export default function App() {
         return;
       }
 setCurrentRole(membership.role);
+setCompanyId(membership.company_id);
       const { data: company, error: companyError } = await supabase
         .from('companies')
         .select('id, name, subtitle, shop_category, phone, email, address, pix_key, owner_name, logo_url, accent_color, document, instagram')
@@ -220,7 +222,7 @@ setCurrentRole(membership.role);
   // Calculate Next OS Number
 
   useEffect(() => {
-    if (!isAuthenticated || !shopSettings.id) return;
+    if (!isAuthenticated || !companyId) return;
 
     const loadAppointmentsForCompany = async () => {
       const { data, error } = await supabase
@@ -240,7 +242,7 @@ setCurrentRole(membership.role);
           services:appointment_services(id, service_name, unit_price, quantity)
 
         `)
-        .eq('company_id', shopSettings.id)
+        .eq('company_id', companyId)
         .order('scheduled_at', { ascending: true });
 
       if (error) {
@@ -286,7 +288,7 @@ setCurrentRole(membership.role);
     };
 
     void loadAppointmentsForCompany();
-  }, [isAuthenticated, shopSettings.id]);
+  }, [isAuthenticated, companyId]);
 
   const nextOSNumber = orders.length > 0 
     ? Math.max(...orders.map((o) => o.osNumber)) + 1 
@@ -294,7 +296,6 @@ setCurrentRole(membership.role);
 
   // Calendar Handlers
   const resolveAppointmentRelations = async (apt: Appointment) => {
-    const companyId = shopSettings.id;
     if (!companyId) throw new Error('Empresa não identificada.');
 
     const cleanName = apt.clientName.trim();
@@ -529,7 +530,7 @@ setCurrentRole(membership.role);
         .from('appointments')
         .delete()
         .eq('id', id)
-        .eq('company_id', shopSettings.id);
+        .eq('company_id', companyId);
 
       if (error) throw error;
       setAppointments(appointments.filter((a) => a.id !== id));
@@ -676,7 +677,7 @@ setCurrentRole(membership.role);
       .from('service_orders')
       .update({ status: newStatus })
       .eq('id', orderId)
-      .eq('company_id', shopSettings.id);
+      .eq('company_id', companyId);
 
     if (error) {
       console.error('Erro ao atualizar status da OS.', error);
@@ -766,7 +767,7 @@ setCurrentRole(membership.role);
       .from('service_orders')
       .update({ payment_status: status })
       .eq('id', orderId)
-      .eq('company_id', shopSettings.id);
+      .eq('company_id', companyId);
 
     if (error) {
       console.error('Erro ao atualizar status do pagamento.', error);
@@ -786,7 +787,7 @@ setCurrentRole(membership.role);
       .from('service_orders')
       .update({ payment_method: method })
       .eq('id', orderId)
-      .eq('company_id', shopSettings.id);
+      .eq('company_id', companyId);
 
     if (error) {
       console.error('Erro ao atualizar forma de pagamento.', error);
@@ -968,7 +969,7 @@ setCurrentRole(membership.role);
 
             {activeTab === 'agendamento' && (
               <CalendarView
-                companyId={shopSettings.id ?? ''}
+                companyId={companyId}
                 appointments={appointments}
                 dailyNotes={dailyNotes}
                 staffWorkLogs={staffWorkLogs}
@@ -988,7 +989,7 @@ setCurrentRole(membership.role);
 
             {activeTab === 'nova-os' && (
               <NewOSView
-                companyId={shopSettings.id ?? ''}
+                companyId={companyId}
                 servicesCatalog={servicesCatalog}
                 nextOSNumber={nextOSNumber}
                 onSaveOS={handleSaveNewOS}
@@ -1010,12 +1011,14 @@ setCurrentRole(membership.role);
             )}
 
             {activeTab === 'clientes' && (
-              <CustomersView companyId={shopSettings.id ?? ''} />
+              <CustomersView companyId={companyId} />
             )}
 
             {activeTab === 'financeiro' && (
               <FinancialView
+                companyId={companyId}
                 orders={orders}
+                appointments={appointments}
                 expenses={expenses}
                 onAddExpense={(e) => setExpenses([e, ...expenses])}
                 onRemoveExpense={(id) => setExpenses(expenses.filter((e) => e.id !== id))}

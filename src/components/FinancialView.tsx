@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ServiceOrder, ShopExpense } from '../types';
+import React, { useEffect, useState } from 'react';
+import { ServiceOrder, ShopExpense, Appointment } from '../types';
 import { 
   Wallet, 
   TrendingUp, 
@@ -12,9 +12,25 @@ import {
   Clock,
   PieChart as PieChartIcon
 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 
+interface PaymentRecord {
+  id: string;
+  amount: number;
+  payment_method: string;
+  status: string;
+  paid_at: string | null;
+  source_type: 'appointment' | 'service_order' | null;
+  appointment_id: string | null;
+  service_order_id: string | null;
+  customer?: { name: string } | { name: string }[] | null;
+  appointment?: { scheduled_at: string } | { scheduled_at: string }[] | null;
+  service_order?: { os_number: number } | { os_number: number }[] | null;
+}
 interface FinancialViewProps {
+  companyId: string;
   orders: ServiceOrder[];
+  appointments: Appointment[];
   expenses: ShopExpense[];
   onAddExpense: (expense: ShopExpense) => void;
   onRemoveExpense: (id: string) => void;
@@ -22,7 +38,9 @@ interface FinancialViewProps {
 }
 
 export const FinancialView: React.FC<FinancialViewProps> = ({
+  companyId,
   orders,
+  appointments,
   expenses,
   onAddExpense,
   onRemoveExpense,
@@ -31,11 +49,45 @@ export const FinancialView: React.FC<FinancialViewProps> = ({
   const [expenseDesc, setExpenseDesc] = useState('');
   const [expenseCategory, setExpenseCategory] = useState<'Produtos' | 'Equipamentos' | 'Contas / Fixo' | 'Comissão' | 'Outros'>('Produtos');
   const [expenseValue, setExpenseValue] = useState('');
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  useEffect(() => {
+  if (!companyId) return;
+
+  const loadPayments = async () => {
+  console.log('FINANCEIRO companyId:', companyId);
+
+  const { data, error } = await supabase
+    .from('payments')
+    .select(`
+      id,
+      amount,
+      payment_method,
+      status,
+      paid_at,
+      source_type,
+      appointment_id,
+      service_order_id
+    `)
+    .eq('company_id', companyId)
+    .eq('status', 'Pago')
+    .order('paid_at', { ascending: false });
+
+  if (error) {
+    console.error('Erro ao carregar recebimentos.', error);
+    return;
+  }
+
+    setPayments((data ?? []) as PaymentRecord[]);
+  };
+
+  void loadPayments();
+}, [companyId, appointments, orders]);
 
   // Financial calculations
-  const totalReceived = orders
-    .filter((o) => o.paymentStatus === 'Pago')
-    .reduce((sum, o) => sum + o.totalValue, 0);
+ const totalReceived = payments.reduce(
+  (sum, payment) => sum + Number(payment.amount ?? 0),
+  0
+);
 
   const totalPending = orders
     .filter((o) => o.paymentStatus === 'Pendente')
@@ -58,11 +110,13 @@ export const FinancialView: React.FC<FinancialViewProps> = ({
     'Pendente': 0,
   };
 
-  orders.forEach((o) => {
-    if (o.paymentMethod in paymentMethodStats) {
-      paymentMethodStats[o.paymentMethod as keyof typeof paymentMethodStats] += o.totalValue;
-    }
-  });
+  payments.forEach((payment) => {
+  const method = payment.payment_method;
+
+  if (method in paymentMethodStats) {
+    paymentMethodStats[method as keyof typeof paymentMethodStats] += Number(payment.amount ?? 0);
+  }
+});
 
   const handleCreateExpense = (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,7 +159,7 @@ export const FinancialView: React.FC<FinancialViewProps> = ({
             <div className="text-xl font-extrabold text-emerald-400">
               R$ {totalReceived.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">OS pagas</p>
+            <p className="text-[11px] text-slate-400 mt-1">Pagamentos recebidos</p>
           </div>
         </div>
 
@@ -275,51 +329,117 @@ export const FinancialView: React.FC<FinancialViewProps> = ({
           </div>
         </div>
 
-        {/* Right Column: Manage OS Payment Statuses */}
-        <div className="bg-[#141c2b] border border-[#23314a] rounded-2xl p-5 space-y-4">
-          <h3 className="text-sm font-bold text-white tracking-tight">Status de Recebimento de OS</h3>
+        {/* Right Column: Recebimentos */}
+<div className="bg-[#141c2b] border border-[#23314a] rounded-2xl p-5 space-y-4">
+  <div>
+    <h3 className="text-sm font-bold text-white tracking-tight">
+      Recebimentos
+    </h3>
+    <p className="text-[11px] text-slate-400 mt-0.5">
+      Entradas confirmadas no caixa, independente da data do serviço.
+    </p>
+  </div>
 
-          <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
-            {orders.map((o) => (
-              <div
-                key={o.id}
-                className="bg-[#182338] border border-[#263757] p-3 rounded-xl flex items-center justify-between text-xs"
-              >
-                <div>
-                  <div className="font-bold text-white flex items-center gap-2">
-                    <span>#{o.osNumber} - {o.plate}</span>
-                    <span className="text-[10px] font-mono text-slate-400">({o.brand} {o.model})</span>
-                  </div>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Cliente: {o.clientName} • Forma: {o.paymentMethod}
-                  </p>
-                </div>
+  <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+    {payments.length > 0 ? (
+      payments.map((payment) => {
+        const paidDate = payment.paid_at
+          ? new Date(payment.paid_at).toLocaleString('pt-BR')
+          : 'Data não informada';
 
-                <div className="flex items-center gap-3">
-                  <span className="font-bold text-blue-400">R$ {o.totalValue.toFixed(2)}</span>
+        const sourceLabel =
+          payment.source_type === 'appointment'
+            ? 'Agendamento'
+            : payment.source_type === 'service_order'
+            ? 'Ordem de Serviço'
+            : 'Recebimento';
 
-                  <select
-                    value={o.paymentStatus}
-                    onChange={(e: any) => onUpdatePaymentStatus(o.id, e.target.value)}
-                    className={`text-xs font-bold px-2.5 py-1 rounded-lg border focus:outline-none cursor-pointer ${
-                      o.paymentStatus === 'Pago'
-                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40'
-                        : o.paymentStatus === 'Fiado'
-                        ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
-                        : 'bg-amber-500/20 text-amber-400 border-amber-500/40'
-                    }`}
-                  >
-                    <option value="Pago" className="bg-[#121929] text-emerald-400">Pago</option>
-                    <option value="Pendente" className="bg-[#121929] text-amber-400">Pendente</option>
-                    <option value="Parcial" className="bg-[#121929] text-blue-400">Parcial</option>
-                    <option value="Fiado" className="bg-[#121929] text-purple-300">Fiado / A Prazo</option>
-                  </select>
-                </div>
+        const relatedAppointment =
+  payment.appointment_id
+    ? appointments.find((appointment) => appointment.id === payment.appointment_id)
+    : undefined;
+
+const relatedOrder =
+  payment.service_order_id
+    ? orders.find((order) => order.id === payment.service_order_id)
+    : undefined;
+
+const clientName =
+  relatedAppointment?.clientName ||
+  relatedOrder?.clientName ||
+  '';
+
+const vehicleLabel = relatedAppointment
+  ? `${relatedAppointment.vehiclePlate} • ${relatedAppointment.vehicleModel}`
+  : relatedOrder
+  ? `${relatedOrder.plate} • ${relatedOrder.brand} ${relatedOrder.model}`
+  : '';
+
+const serviceDate = relatedAppointment
+  ? new Date(
+      `${relatedAppointment.date}T${relatedAppointment.time}`
+    ).toLocaleString('pt-BR')
+  : '';
+
+const title =
+  payment.source_type === 'appointment'
+    ? `Agendamento${clientName ? ` • ${clientName}` : ''}`
+    : payment.source_type === 'service_order'
+    ? `OS #${relatedOrder?.osNumber ?? ''}${clientName ? ` • ${clientName}` : ''}`
+    : sourceLabel;
+        return (
+          <div
+            key={payment.id}
+            className="bg-[#182338] border border-[#263757] p-3 rounded-xl flex items-center justify-between text-xs"
+          >
+            <div>
+              <div className="font-bold text-white">
+                {title}
               </div>
-            ))}
+            {vehicleLabel && (
+  <p className="text-[11px] text-slate-400 mt-0.5">
+    Veículo: {vehicleLabel}
+  </p>
+)}
+
+{serviceDate && (
+  <p className="text-[11px] text-slate-400 mt-0.5">
+    Serviço agendado para: {serviceDate}
+  </p>
+)}
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Forma: {payment.payment_method}
+              </p>
+
+              <p className="text-[10px] text-slate-500 mt-0.5">
+                Recebido em: {paidDate}
+              </p>
+            </div>
+
+            <div className="text-right">
+              <span className="font-bold text-emerald-400">
+                R$ {Number(payment.amount).toLocaleString('pt-BR', {
+                  minimumFractionDigits: 2,
+                })}
+              </span>
+
+              <div className="mt-1">
+                <span className="inline-flex text-[10px] font-bold px-2 py-1 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/40">
+                  Pago
+                </span>
+              </div>
+            </div>
           </div>
-        </div>
+        );
+      })
+    ) : (
+      <div className="py-8 text-center text-slate-500 text-xs">
+        Nenhum recebimento registrado.
       </div>
-    </div>
-  );
+    )}
+  </div>
+</div>
+</div>
+</div>
+);
 };
