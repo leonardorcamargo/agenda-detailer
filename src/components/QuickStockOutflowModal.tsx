@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Package,
+  Plus,
   Search,
   ShoppingCart,
   X,
@@ -14,6 +15,7 @@ interface QuickStockOutflowModalProps {
   products: ProductItem[];
   shopSettings?: ShopSettings;
   onAdjustStock: (productId: string, delta: number) => void;
+  onCreateProduct?: (product: ProductItem) => void;
   onOpenPurchaseOrder?: () => void;
   onClose: () => void;
 }
@@ -25,6 +27,7 @@ type PackageOption = (typeof PACKAGE_OPTIONS)[number];
 export const QuickStockOutflowModal: React.FC<QuickStockOutflowModalProps> = ({
   products,
   onAdjustStock,
+  onCreateProduct,
   onOpenPurchaseOrder,
   onClose,
 }) => {
@@ -32,6 +35,8 @@ export const QuickStockOutflowModal: React.FC<QuickStockOutflowModalProps> = ({
   const [selectedProduct, setSelectedProduct] = useState<ProductItem | null>(null);
   const [packageSize, setPackageSize] = useState<PackageOption | ''>('');
   const [customPackageSize, setCustomPackageSize] = useState('');
+  const [quickCreateMode, setQuickCreateMode] = useState(false);
+  const [newProductName, setNewProductName] = useState('');
   const [feedback, setFeedback] = useState<{
     message: string;
     type: 'success' | 'warn';
@@ -52,20 +57,74 @@ export const QuickStockOutflowModal: React.FC<QuickStockOutflowModalProps> = ({
   const selectedSize =
     packageSize === 'Outro' ? customPackageSize.trim() : packageSize;
 
-  const canConfirm =
+  const canConfirmExisting =
     Boolean(selectedProduct) &&
     Boolean(selectedSize) &&
     (selectedProduct?.currentStock ?? 0) > 0;
 
+  const canConfirmQuickCreate =
+    quickCreateMode && Boolean(newProductName.trim()) && Boolean(selectedSize);
+
+  const canConfirm = canConfirmExisting || canConfirmQuickCreate;
+
+  const resetSelection = () => {
+    setSelectedProduct(null);
+    setPackageSize('');
+    setCustomPackageSize('');
+    setQuickCreateMode(false);
+    setNewProductName('');
+    setSearch('');
+  };
+
   const selectProduct = (product: ProductItem) => {
     setSelectedProduct(product);
+    setQuickCreateMode(false);
+    setNewProductName('');
+    setPackageSize('');
+    setCustomPackageSize('');
+    setFeedback(null);
+  };
+
+  const startQuickCreate = () => {
+    setSelectedProduct(null);
+    setQuickCreateMode(true);
+    setNewProductName(search.trim());
     setPackageSize('');
     setCustomPackageSize('');
     setFeedback(null);
   };
 
   const handleConfirmOutflow = () => {
-    if (!selectedProduct || !selectedSize) return;
+    if (!selectedSize) return;
+
+    if (quickCreateMode) {
+      const cleanName = newProductName.trim();
+      if (!cleanName) return;
+
+      const newProduct: ProductItem = {
+        id: `quick_product_${Date.now()}`,
+        name: cleanName,
+        category: 'Cadastro rápido',
+        unit: 'Unidade',
+        costPrice: 0,
+        currentStock: 0,
+        minStock: 0,
+        description: `Cadastrado durante uma baixa rápida. Embalagem: ${selectedSize}.`,
+        tags: ['cadastro-rápido'],
+      };
+
+      onCreateProduct?.(newProduct);
+
+      setFeedback({
+        message: `${cleanName} foi cadastrado e a baixa de 1 unidade (${selectedSize}) foi registrada.`,
+        type: 'success',
+      });
+
+      resetSelection();
+      return;
+    }
+
+    if (!selectedProduct) return;
 
     if (selectedProduct.currentStock <= 0) {
       setFeedback({
@@ -82,10 +141,7 @@ export const QuickStockOutflowModal: React.FC<QuickStockOutflowModalProps> = ({
       type: 'success',
     });
 
-    setSelectedProduct(null);
-    setPackageSize('');
-    setCustomPackageSize('');
-    setSearch('');
+    resetSelection();
   };
 
   return (
@@ -158,7 +214,15 @@ export const QuickStockOutflowModal: React.FC<QuickStockOutflowModalProps> = ({
                 <input
                   type="text"
                   value={search}
-                  onChange={(event) => setSearch(event.target.value)}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    if (quickCreateMode) {
+                      setQuickCreateMode(false);
+                      setNewProductName('');
+                      setPackageSize('');
+                      setCustomPackageSize('');
+                    }
+                  }}
                   placeholder="Ex.: shampoo, cera, boina..."
                   autoFocus
                   className="w-full rounded-2xl border border-[#2a3a57] bg-[#151f30] py-3 pl-10 pr-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-amber-500"
@@ -201,20 +265,41 @@ export const QuickStockOutflowModal: React.FC<QuickStockOutflowModalProps> = ({
                     );
                   })
                 ) : (
-                  <div className="rounded-2xl border border-dashed border-[#2a3a57] px-4 py-8 text-center text-xs text-slate-500">
-                    Nenhum produto encontrado.
+                  <div className="rounded-2xl border border-dashed border-[#2a3a57] px-4 py-5 text-center">
+                    <div className="text-xs font-bold text-slate-300">Nenhum produto encontrado.</div>
+                    {search.trim() && onCreateProduct && (
+                      <>
+                        <p className="mt-1 text-[11px] text-slate-500">
+                          Esqueceu de cadastrar este produto no estoque?
+                        </p>
+                        <button
+                          type="button"
+                          onClick={startQuickCreate}
+                          className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-black text-amber-300 transition-colors hover:bg-amber-500/20"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          Cadastrar e dar baixa
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
             </section>
 
-            <section className={`space-y-3 transition-opacity ${selectedProduct ? 'opacity-100' : 'opacity-40'}`}>
+            <section
+              className={`space-y-3 transition-opacity ${
+                selectedProduct || quickCreateMode ? 'opacity-100' : 'opacity-40'
+              }`}
+            >
               <div>
                 <div className="text-xs font-black uppercase tracking-wide text-slate-300">
-                  2. Tamanho da embalagem
+                  {quickCreateMode ? '2. Cadastrar e dar baixa' : '2. Tamanho da embalagem'}
                 </div>
                 <p className="mt-1 text-xs text-slate-500">
-                  A baixa sempre corresponde a uma unidade inteira do produto.
+                  {quickCreateMode
+                    ? 'Só o essencial agora. Os demais dados podem ser preenchidos depois no estoque.'
+                    : 'A baixa sempre corresponde a uma unidade inteira do produto.'}
                 </p>
               </div>
 
@@ -230,12 +315,25 @@ export const QuickStockOutflowModal: React.FC<QuickStockOutflowModalProps> = ({
                 </div>
               )}
 
+              {quickCreateMode && (
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-bold text-slate-400">Nome do produto</label>
+                  <input
+                    type="text"
+                    value={newProductName}
+                    onChange={(event) => setNewProductName(event.target.value)}
+                    placeholder="Nome do produto"
+                    className="w-full rounded-2xl border border-amber-500/40 bg-[#151f30] px-3 py-3 text-sm text-white outline-none placeholder:text-slate-500 focus:border-amber-400"
+                  />
+                </div>
+              )}
+
               <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
                 {PACKAGE_OPTIONS.map((option) => (
                   <button
                     type="button"
                     key={option}
-                    disabled={!selectedProduct}
+                    disabled={!selectedProduct && !quickCreateMode}
                     onClick={() => {
                       setPackageSize(option);
                       if (option !== 'Outro') setCustomPackageSize('');
@@ -272,7 +370,9 @@ export const QuickStockOutflowModal: React.FC<QuickStockOutflowModalProps> = ({
             className="flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-amber-500 px-4 py-3.5 text-sm font-black text-slate-950 shadow-lg transition-all hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-35"
           >
             <Zap className="h-4 w-4 fill-current" />
-            {selectedProduct && selectedSize
+            {quickCreateMode && selectedSize
+              ? `Cadastrar e registrar baixa · ${selectedSize}`
+              : selectedProduct && selectedSize
               ? `Confirmar baixa de 1 unidade · ${selectedSize}`
               : 'Selecione o produto e a embalagem'}
           </button>
