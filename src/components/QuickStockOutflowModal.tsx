@@ -113,7 +113,11 @@ export const QuickStockOutflowModal: React.FC<QuickStockOutflowModalProps> = ({
         tags: ['cadastro-rápido'],
       };
 
-      onCreateProduct?.(newProduct);
+      if (onCreateProduct) {
+        onCreateProduct(newProduct);
+      } else {
+        products.unshift(newProduct);
+      }
 
       setFeedback({
         message: `${cleanName} foi cadastrado e a baixa de 1 unidade (${selectedSize}) foi registrada.`,
@@ -267,7 +271,7 @@ export const QuickStockOutflowModal: React.FC<QuickStockOutflowModalProps> = ({
                 ) : (
                   <div className="rounded-2xl border border-dashed border-[#2a3a57] px-4 py-5 text-center">
                     <div className="text-xs font-bold text-slate-300">Nenhum produto encontrado.</div>
-                    {search.trim() && onCreateProduct && (
+                    {search.trim() && (
                       <>
                         <p className="mt-1 text-[11px] text-slate-500">
                           Esqueceu de cadastrar este produto no estoque?
