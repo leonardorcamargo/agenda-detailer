@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ProductItem, ShopSettings } from '../types';
+import { supabase } from '../lib/supabase';
 import {
   ShoppingCart,
   X,
@@ -15,7 +16,8 @@ import {
   Trash2,
   DollarSign,
   Truck,
-  Sparkles
+  Sparkles,
+  Pencil
 } from 'lucide-react';
 
 interface PurchaseOrderItem {
@@ -47,6 +49,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
   const [selectedSupplier, setSelectedSupplier] = useState<string>('Todos os Fornecedores');
   const [supplierPhone, setSupplierPhone] = useState<string>('');
   const [copied, setCopied] = useState(false);
+  const [senderName, setSenderName] = useState<string>('');
 
   // Initial order items: all low-stock products matching selected supplier
   const [orderItems, setOrderItems] = useState<PurchaseOrderItem[]>(() => {
@@ -59,6 +62,43 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
       };
     });
   });
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadSenderName = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user || !mounted) return;
+
+      const { data: profile, error } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Erro ao carregar nome do usuário para o pedido de compra.', error);
+      }
+
+      if (mounted) {
+        setSenderName(
+          profile?.full_name?.trim() ||
+          shopSettings?.ownerName?.trim() ||
+          user.email?.split('@')[0] ||
+          ''
+        );
+      }
+    };
+
+    loadSenderName();
+
+    return () => {
+      mounted = false;
+    };
+  }, [shopSettings?.ownerName]);
 
   // Filter products matching supplier
   const filteredProductsToAdd = useMemo(() => {
@@ -100,7 +140,6 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
   const shopName = shopSettings?.name || 'Studio de Estética Automotiva';
   const shopPhone = shopSettings?.phone || '';
   const shopAddress = shopSettings?.address || '';
-  const ownerName = shopSettings?.ownerName || '';
 
   // Generate WhatsApp formatted text
   const generateWhatsAppMessage = () => {
@@ -110,7 +149,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
         : `Olá! Tudo bem?`;
 
     let text = `${supplierGreeting} 🚗📦\n\n`;
-    text += `Aqui é *${ownerName ? `${ownerName} da ` : ''}${shopName}*.\n`;
+    text += `Aqui é *${senderName ? `${senderName} da ` : ''}${shopName}*.\n`;
     text += `Gostaríamos de solicitar a cotação e envio dos seguintes insumos para nossa operação:\n\n`;
     text += `🛒 *LISTA DO PEDIDO DE REPOSIÇÃO:*\n`;
 
@@ -138,7 +177,16 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
     return text;
   };
 
-  const messageText = generateWhatsAppMessage();
+  const generatedMessage = generateWhatsAppMessage();
+  const [messageText, setMessageText] = useState(generatedMessage);
+  const [isEditingMessage, setIsEditingMessage] = useState(false);
+  const [messageCustomized, setMessageCustomized] = useState(false);
+
+  useEffect(() => {
+    if (!messageCustomized) {
+      setMessageText(generatedMessage);
+    }
+  }, [generatedMessage, messageCustomized]);
 
   const handleCopyText = () => {
     navigator.clipboard.writeText(messageText);
@@ -354,32 +402,55 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
           <div className="lg:col-span-5 p-4 bg-[#0e1524] flex flex-col justify-between space-y-3">
             
             <div className="space-y-2 flex-1 flex flex-col">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
                   <MessageCircle className="w-4 h-4 text-emerald-400" />
                   Mensagem Formatada para WhatsApp:
                 </span>
-                <button
-                  onClick={handleCopyText}
-                  className="text-xs font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 bg-[#182438] px-2.5 py-1 rounded-lg border border-blue-500/20 cursor-pointer"
-                >
-                  {copied ? (
-                    <>
-                      <Check className="w-3 h-3 text-emerald-400" /> Copiado!
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-3 h-3" /> Copiar
-                    </>
-                  )}
-                </button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditingMessage((editing) => !editing)}
+                    className={`text-xs font-bold flex items-center gap-1 px-2.5 py-1 rounded-lg border cursor-pointer transition-colors ${
+                      isEditingMessage
+                        ? 'text-emerald-300 bg-emerald-500/10 border-emerald-500/30'
+                        : 'text-slate-300 bg-[#182438] border-[#2b3d5e] hover:text-white'
+                    }`}
+                  >
+                    <Pencil className="w-3 h-3" />
+                    {isEditingMessage ? 'Concluir' : 'Editar'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCopyText}
+                    className="text-xs font-bold text-blue-400 hover:text-blue-300 flex items-center gap-1 bg-[#182438] px-2.5 py-1 rounded-lg border border-blue-500/20 cursor-pointer"
+                  >
+                    {copied ? (
+                      <>
+                        <Check className="w-3 h-3 text-emerald-400" /> Copiado!
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3" /> Copiar
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
               <textarea
-                readOnly
+                readOnly={!isEditingMessage}
                 value={messageText}
+                onChange={(e) => {
+                  setMessageText(e.target.value);
+                  setMessageCustomized(true);
+                }}
                 rows={12}
-                className="w-full bg-[#0b101a] border border-[#202d44] rounded-2xl p-3 text-xs text-slate-200 font-mono leading-relaxed resize-none focus:outline-none flex-1 shadow-inner"
+                className={`w-full bg-[#0b101a] border rounded-2xl p-3 text-xs text-slate-200 font-mono leading-relaxed resize-none focus:outline-none flex-1 shadow-inner transition-colors ${
+                  isEditingMessage
+                    ? 'border-emerald-500/50 focus:border-emerald-400'
+                    : 'border-[#202d44]'
+                }`}
               />
             </div>
 
