@@ -10,6 +10,7 @@ import {
   Clock3,
   Eye,
   Package,
+  Pencil,
   ShoppingCart,
   Sparkles,
   Wrench,
@@ -51,6 +52,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onNavigateToCatalog,
 }) => {
   const [company, setCompany] = useState<DashboardCompany>({ name: 'Sua empresa', logoUrl: '' });
+  const [userName, setUserName] = useState<string>('');
   const [summary, setSummary] = useState<DashboardSummary>({ receivedThisMonth: 0, appointmentsToday: 0 });
 
   const carsInYard = useMemo(
@@ -98,8 +100,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
-      const [companyResult, paymentsResult, appointmentsResult] = await Promise.all([
-        supabase.from('companies').select('name, logo_url').eq('id', membership.company_id).maybeSingle(),
+      const [companyResult, profileResult, paymentsResult, appointmentsResult] = await Promise.all([
+        supabase.from('companies').select('name, logo_url, owner_name').eq('id', membership.company_id).maybeSingle(),
+        supabase.from('profiles').select('full_name').eq('id', user.id).maybeSingle(),
         supabase
           .from('payments')
           .select('amount')
@@ -123,6 +126,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           logoUrl: companyResult.data.logo_url ?? '',
         });
       }
+
+      if (profileResult.error) {
+        console.error('Erro ao carregar nome do usuário no Dashboard.', profileResult.error);
+      }
+
+      setUserName(
+        profileResult.data?.full_name?.trim() ||
+        companyResult.data?.owner_name?.trim() ||
+        user.email?.split('@')[0] ||
+        ''
+      );
 
       if (paymentsResult.error) console.error('Erro ao carregar recebimentos no Dashboard.', paymentsResult.error);
       if (appointmentsResult.error) console.error('Erro ao carregar agendamentos do dia no Dashboard.', appointmentsResult.error);
@@ -155,6 +169,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     .join('')
     .toUpperCase();
 
+  const handleOpenSettings = () => {
+    const settingsButton = document.querySelector<HTMLButtonElement>('button[data-tab="configuracoes"]');
+    settingsButton?.click();
+  };
+
   const attentionItems = [
     readyCount > 0 ? `${readyCount} ${readyCount === 1 ? 'veículo pronto para entrega' : 'veículos prontos para entrega'}` : null,
     pendingPaymentCount > 0 ? `${pendingPaymentCount} ${pendingPaymentCount === 1 ? 'pagamento pendente' : 'pagamentos pendentes'}` : null,
@@ -174,7 +193,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
 
           <div className="min-w-0 flex-1">
-            <h1 className="truncate text-2xl font-black tracking-tight text-white sm:text-3xl">{company.name}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="truncate text-2xl font-black tracking-tight text-white sm:text-3xl">{company.name}</h1>
+              <button
+                type="button"
+                onClick={handleOpenSettings}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#2b3b59] bg-[#141c2b] text-slate-400 transition-colors hover:border-blue-500/50 hover:text-blue-400"
+                title="Editar nome, empresa e perfil"
+                aria-label="Editar dados do perfil e da empresa"
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </button>
+            </div>
             <div className="mt-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 sm:text-xs">
               <Sparkles className="h-3.5 w-3.5 text-blue-400" />
               Agenda Detailer
@@ -183,7 +213,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
 
         <div className="mt-4 pl-1 sm:mt-5">
-          <p className="text-sm font-semibold text-slate-200 sm:text-base">{greeting}!</p>
+          <p className="text-sm font-semibold text-slate-200 sm:text-base">
+            {greeting}{userName ? `, ${userName}` : ''}
+          </p>
           <p className="mt-0.5 text-xs capitalize text-slate-500 sm:text-sm">{todayLabel}</p>
         </div>
       </section>
