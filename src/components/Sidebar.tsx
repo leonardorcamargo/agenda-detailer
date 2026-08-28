@@ -1,15 +1,15 @@
 import React from 'react';
 import { ShopSettings } from '../types';
-import { 
-  LayoutDashboard, 
-  FilePlus, 
-  Car, 
-  Wallet, 
+import {
+  LayoutDashboard,
+  FilePlus,
+  Car,
+  Wallet,
   Users,
   Calendar,
   Layers,
   Flame,
-  Settings, 
+  Settings,
   LogOut,
   X
 } from 'lucide-react';
@@ -48,6 +48,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'configuracoes', label: 'Configurações do Perfil', shortLabel: 'Perfil', icon: Settings },
   ];
 
+  const mobileQuickItems = menuItems.filter((item) =>
+    item.id === 'agendamento' || item.id === 'nova-os' || item.id === 'patio'
+  );
+
   const handleTabClick = (tab: ActiveTab) => {
     setActiveTab(tab);
     if (onCloseMobile) onCloseMobile();
@@ -55,11 +59,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const SidebarContent = () => (
     <div className="flex flex-col justify-between h-full">
-      {/* Top Branding Section with Custom Shop Logo & Identity */}
       <div>
         <div className="p-4 border-b border-[#1f293d]/80 flex items-center justify-between">
           <div className="min-w-0 flex-1">
-            {/* Shop Identity Container */}
             <div className="flex items-center gap-3 bg-[#151e30] border border-[#23314a] p-2.5 rounded-2xl">
               {settings.logoUrl ? (
                 <img
@@ -83,7 +85,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
 
-          {/* Close button for Mobile drawer */}
           {onCloseMobile && (
             <button
               onClick={onCloseMobile}
@@ -94,7 +95,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
 
-        {/* Navigation Menu */}
         <nav className="p-3 space-y-1 mt-1">
           {menuItems.map((item) => {
             const Icon = item.icon;
@@ -124,9 +124,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
       </div>
 
-      {/* Footer / User Account Context & Logout */}
       <div className="p-4 border-t border-[#1f293d] space-y-3">
-        {/* Active User Account Badge */}
         <div className="bg-[#172033] border border-[#24324a] rounded-xl p-2.5 text-xs">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2 min-w-0">
@@ -165,30 +163,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Desktop Sidebar */}
       <aside className="hidden md:flex w-64 bg-[#111827] border-r border-[#1f293d] flex-col justify-between shrink-0 select-none">
         <SidebarContent />
       </aside>
 
-      {/* Mobile Drawer Slide-Over */}
       {isMobileOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
-          {/* Backdrop overlay */}
           <div
             className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity"
             onClick={onCloseMobile}
           />
 
-          {/* Drawer Panel */}
           <div className="relative w-72 max-w-[80vw] bg-[#111827] border-r border-[#1f293d] flex flex-col justify-between shadow-2xl z-10 h-full">
             <SidebarContent />
           </div>
         </div>
       )}
 
-      {/* Mobile Bottom Navigation Bar (Always visible on mobile screens) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#111827]/95 backdrop-blur-md border-t border-[#1f293d] flex items-center justify-around px-1 py-1.5 shadow-2xl">
-        {menuItems.map((item) => {
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#111827]/95 backdrop-blur-md border-t border-[#1f293d] grid grid-cols-4 items-center px-2 py-1.5 shadow-2xl">
+        {mobileQuickItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
           return (
@@ -211,8 +204,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           );
         })}
+        <div aria-hidden="true" className="h-12" />
       </nav>
     </>
   );
 };
-
