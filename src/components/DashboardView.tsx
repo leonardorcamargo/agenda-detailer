@@ -163,25 +163,28 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="mx-auto max-w-7xl space-y-3 p-3 sm:space-y-5 sm:p-6">
-      <section className="rounded-2xl border border-[#23314a] bg-[#141c2b] p-4 sm:rounded-3xl sm:p-6">
-        <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[#2b3b59] bg-[#0f1727] sm:h-16 sm:w-16 sm:rounded-2xl">
+      <section className="px-2 py-3 sm:px-1 sm:py-4">
+        <div className="flex min-w-0 items-center gap-4">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-blue-500/70 bg-[#0f1727] shadow-lg shadow-blue-950/20 sm:h-20 sm:w-20">
             {company.logoUrl ? (
               <img src={company.logoUrl} alt={`Logo ${company.name}`} className="h-full w-full object-cover" />
             ) : (
-              <span className="text-lg font-black text-blue-300 sm:text-xl">{initials}</span>
+              <span className="text-xl font-black text-blue-300 sm:text-2xl">{initials}</span>
             )}
           </div>
+
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-[0.14em] text-blue-400 sm:text-[11px]">
-              <Sparkles className="h-3 w-3" />
+            <h1 className="truncate text-2xl font-black tracking-tight text-white sm:text-3xl">{company.name}</h1>
+            <div className="mt-1 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400 sm:text-xs">
+              <Sparkles className="h-3.5 w-3.5 text-blue-400" />
               Agenda Detailer
             </div>
-            <h1 className="mt-0.5 truncate text-xl font-black tracking-tight text-white sm:text-3xl">{company.name}</h1>
-            <p className="mt-0.5 truncate text-xs capitalize text-slate-400 sm:text-sm">
-              {greeting} · {todayLabel}
-            </p>
           </div>
+        </div>
+
+        <div className="mt-4 pl-1 sm:mt-5">
+          <p className="text-sm font-semibold text-slate-200 sm:text-base">{greeting}!</p>
+          <p className="mt-0.5 text-xs capitalize text-slate-500 sm:text-sm">{todayLabel}</p>
         </div>
       </section>
 
