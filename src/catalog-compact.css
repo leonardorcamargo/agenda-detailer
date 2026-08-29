@@ -1,6 +1,6 @@
-/* Compacta somente o cabeçalho principal do Catálogo sem alterar os cards/ações de cadastro abaixo. */
+/* Catálogo: foco em navegação e ações, sem repetir o resumo em cards. */
 main > div.flex-1.pb-20 > div.max-w-7xl.mx-auto > div.rounded-3xl.shadow-xl:has(h2) {
-  padding: 1rem;
+  padding: 0.35rem 0;
   border-color: transparent;
   background: transparent;
   box-shadow: none;
@@ -14,12 +14,12 @@ main > div.flex-1.pb-20 > div.max-w-7xl.mx-auto > div.rounded-3xl.shadow-xl:has(
   display: block;
 }
 
-/* Os três atalhos superiores duplicavam os botões já existentes em cada seção. */
+/* Os três atalhos superiores duplicavam as ações contextuais das abas. */
 main > div.flex-1.pb-20 > div.max-w-7xl.mx-auto > div.rounded-3xl.shadow-xl:has(h2) > div.relative > div:last-child {
   display: none;
 }
 
-/* Remove selos e texto promocional para deixar o catálogo com leitura mais operacional. */
+/* Remove selos e texto promocional. */
 main > div.flex-1.pb-20 > div.max-w-7xl.mx-auto > div.rounded-3xl.shadow-xl:has(h2) > div.relative > div:first-child > div:first-child,
 main > div.flex-1.pb-20 > div.max-w-7xl.mx-auto > div.rounded-3xl.shadow-xl:has(h2) > div.relative > div:first-child > p {
   display: none;
@@ -32,25 +32,35 @@ main > div.flex-1.pb-20 > div.max-w-7xl.mx-auto > div.rounded-3xl.shadow-xl:has(
   letter-spacing: -0.01em;
 }
 
-/* Resumo mais compacto, próximo da linguagem visual usada no Dashboard. */
+/* Os quatro cards repetiam os mesmos totais já exibidos nas abas. */
 main > div.flex-1.pb-20 > div.max-w-7xl.mx-auto > div.rounded-3xl.shadow-xl:has(h2) + div.grid {
-  gap: 0.5rem;
+  display: none;
 }
 
-main > div.flex-1.pb-20 > div.max-w-7xl.mx-auto > div.rounded-3xl.shadow-xl:has(h2) + div.grid > div {
-  padding: 0.75rem;
-  border-radius: 0.875rem;
-  box-shadow: none;
+/* A barra de abas passa a ser o principal ponto de navegação do catálogo. */
+main > div.flex-1.pb-20 > div.max-w-7xl.mx-auto > div.flex.flex-col.sm\:flex-row.sm\:items-center.justify-between {
+  padding: 0.7rem;
+  border: 1px solid #23314a;
+  border-radius: 1rem;
+  background: #111827;
 }
 
-main > div.flex-1.pb-20 > div.max-w-7xl.mx-auto > div.rounded-3xl.shadow-xl:has(h2) + div.grid > div > div:first-child > div {
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: 0.625rem;
+main > div.flex-1.pb-20 > div.max-w-7xl.mx-auto > div.flex.flex-col.sm\:flex-row.sm\:items-center.justify-between > div:first-child {
+  flex: 1 1 auto;
+  border: 0;
+  background: transparent;
+  padding: 0;
 }
 
-main > div.flex-1.pb-20 > div.max-w-7xl.mx-auto > div.rounded-3xl.shadow-xl:has(h2) + div.grid > div > div.mt-2 {
-  margin-top: 0.35rem;
+/* A ação da aba ativa ganha mais presença e vira o cadastro rápido principal. */
+main > div.flex-1.pb-20 > div.max-w-7xl.mx-auto > div.flex.flex-col.sm\:flex-row.sm\:items-center.justify-between > div:last-child button {
+  min-height: 2.5rem;
+  font-weight: 800;
+}
+
+main > div.flex-1.pb-20 > div.max-w-7xl.mx-auto > div.flex.flex-col.sm\:flex-row.sm\:items-center.justify-between > div:last-child button:last-child {
+  border-color: rgba(59, 130, 246, 0.45);
+  background: rgba(37, 99, 235, 0.18);
 }
 
 @media (max-width: 640px) {
@@ -59,7 +69,7 @@ main > div.flex-1.pb-20 > div.max-w-7xl.mx-auto > div.rounded-3xl.shadow-xl:has(
   }
 
   main > div.flex-1.pb-20 > div.max-w-7xl.mx-auto > div.rounded-3xl.shadow-xl:has(h2) {
-    padding: 0.25rem 0;
+    padding: 0;
   }
 
   main > div.flex-1.pb-20 > div.max-w-7xl.mx-auto > div.rounded-3xl.shadow-xl:has(h2) h2 {
@@ -67,12 +77,17 @@ main > div.flex-1.pb-20 > div.max-w-7xl.mx-auto > div.rounded-3xl.shadow-xl:has(
     line-height: 1.35rem;
   }
 
-  main > div.flex-1.pb-20 > div.max-w-7xl.mx-auto > div.rounded-3xl.shadow-xl:has(h2) + div.grid > div {
-    padding: 0.65rem;
+  main > div.flex-1.pb-20 > div.max-w-7xl.mx-auto > div.flex.flex-col.sm\:flex-row.sm\:items-center.justify-between {
+    padding: 0.55rem;
+    gap: 0.55rem;
   }
 
-  main > div.flex-1.pb-20 > div.max-w-7xl.mx-auto > div.rounded-3xl.shadow-xl:has(h2) + div.grid p {
-    font-size: 0.625rem;
-    line-height: 0.85rem;
+  main > div.flex-1.pb-20 > div.max-w-7xl.mx-auto > div.flex.flex-col.sm\:flex-row.sm\:items-center.justify-between > div:last-child,
+  main > div.flex-1.pb-20 > div.max-w-7xl.mx-auto > div.flex.flex-col.sm\:flex-row.sm\:items-center.justify-between > div:last-child > div {
+    width: 100%;
+  }
+
+  main > div.flex-1.pb-20 > div.max-w-7xl.mx-auto > div.flex.flex-col.sm\:flex-row.sm\:items-center.justify-between > div:last-child button {
+    width: 100%;
   }
 }
