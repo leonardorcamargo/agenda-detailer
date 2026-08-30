@@ -35,6 +35,7 @@ import { CalendarView } from './components/CalendarView';
 import { NewOSView } from './components/NewOSView';
 import { KanbanView } from './components/KanbanView';
 import { FinancialView } from './components/FinancialView';
+import { RemindersView } from './components/RemindersView';
 import { StaffView } from './components/StaffView';
 import { CustomersView } from './components/CustomersView';
 import { CatalogView } from './components/CatalogView';
@@ -896,6 +897,8 @@ setCompanyId(membership.company_id);
                 ? 'Catálogo de Serviços & Matéria-Prima'
                 : activeTab === 'combos'
                 ? 'Combos & Pacotes Promocionais'
+                : activeTab === 'lembretes'
+                ? 'Lembretes'
                 : 'Configurações do Perfil'
             }
             activeViewSubtitle={
@@ -915,6 +918,8 @@ setCompanyId(membership.company_id);
                 ? 'Gerencie os serviços oferecidos e o estoque de insumos, químicos e matérias-primas'
                 : activeTab === 'combos'
                 ? 'Crie pacotes com desconto, gere propagandas para WhatsApp e divulgue nas redes sociais'
+                : activeTab === 'lembretes'
+                ? 'Anotações rápidas para não esquecer o que importa'
                 : 'Configurações de identidade visual, logo e dados cadastrais'
             }
             onNewOSClick={() => setActiveTab('nova-os')}
@@ -1082,6 +1087,10 @@ setCompanyId(membership.company_id);
               />
             )}
 
+            {activeTab === 'lembretes' && companyId && (
+              <RemindersView key={companyId} companyId={companyId} role={currentRole} />
+            )}
+
             {activeTab === 'configuracoes' && (
               <SettingsView
                 settings={shopSettings}
@@ -1131,4 +1140,3 @@ setCompanyId(membership.company_id);
     </div>
   );
 }
-

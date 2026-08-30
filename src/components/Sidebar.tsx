@@ -10,11 +10,12 @@ import {
   Layers,
   Flame,
   Settings,
+  StickyNote,
   LogOut,
   X
 } from 'lucide-react';
 
-export type ActiveTab = 'dashboard' | 'agendamento' | 'nova-os' | 'patio' | 'clientes' | 'financeiro' | 'mao-de-obra' | 'catalogo' | 'combos' | 'configuracoes';
+export type ActiveTab = 'dashboard' | 'agendamento' | 'nova-os' | 'patio' | 'clientes' | 'financeiro' | 'mao-de-obra' | 'catalogo' | 'combos' | 'lembretes' | 'configuracoes';
 
 interface SidebarProps {
   settings: ShopSettings;
@@ -45,11 +46,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'mao-de-obra', label: 'Equipe', shortLabel: 'Equipe', icon: Users },
     { id: 'catalogo', label: 'Catálogo', shortLabel: 'Catálogo', icon: Layers },
     { id: 'combos', label: 'Combos & Pacotes', shortLabel: 'Combos', icon: Flame },
+    { id: 'lembretes', label: 'Lembretes', shortLabel: 'Lembretes', icon: StickyNote },
     { id: 'configuracoes', label: 'Configurações do Perfil', shortLabel: 'Perfil', icon: Settings },
   ];
 
   const mobileQuickItems = menuItems.filter((item) =>
-    item.id === 'agendamento' || item.id === 'nova-os' || item.id === 'patio'
+    item.id === 'agendamento' || item.id === 'nova-os' || item.id === 'patio' || item.id === 'lembretes'
   );
 
   const handleTabClick = (tab: ActiveTab) => {
@@ -205,7 +207,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           );
         })}
-        <div aria-hidden="true" className="h-12" />
       </nav>
     </>
   );
