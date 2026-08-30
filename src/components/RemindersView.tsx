@@ -128,7 +128,7 @@ export const RemindersView: React.FC<{ companyId: string; role: string | null }>
   }
 
   return (
-    <section className="space-y-5 pb-4" aria-label="Lembretes da empresa">
+    <section className="w-full min-w-0 max-w-full space-y-5 p-3 sm:p-6" aria-label="Lembretes da empresa">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-slate-400">Post-its compartilhados com a equipe. Não enviam notificações.</p>
         <div className="flex gap-2">
@@ -145,28 +145,28 @@ export const RemindersView: React.FC<{ companyId: string; role: string | null }>
       {error && <p role="alert" className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3 text-sm text-rose-300">{error}</p>}
       {notice && <p role="status" className="text-sm text-emerald-300">{notice}</p>}
       {showForm && (
-        <form onSubmit={save} className="space-y-4 rounded-2xl border border-amber-300/40 bg-[#151e30] p-4 sm:p-5">
+        <form onSubmit={save} className="min-w-0 space-y-4 rounded-2xl border border-amber-300/40 bg-[#151e30] p-4 sm:p-5">
           <h2 className="font-semibold text-white">{editing ? 'Editar lembrete' : 'Novo lembrete'}</h2>
           <label className="block text-sm text-slate-300">O que precisa lembrar?
             <textarea ref={editor} required maxLength={4000} rows={4} value={form.note} disabled={busy}
               onChange={event => setForm({ ...form, note: event.target.value })}
               placeholder="Ex.: comprar shampoo automotivo ou ligar para o fornecedor"
-              className="mt-2 block w-full resize-y rounded-xl border border-slate-600 bg-slate-900 p-3 text-white focus:border-amber-300" />
+              className="mt-2 block w-full min-w-0 max-w-full resize-y rounded-xl border border-slate-600 bg-slate-900 p-3 text-base sm:text-sm text-white focus:border-amber-300" />
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <label className="text-sm text-slate-300">Data do lembrete
+            <label className="min-w-0 text-sm text-slate-300">Data do lembrete
               <input type="date" required value={form.note_date} disabled={busy}
                 onChange={event => setForm({ ...form, note_date: event.target.value })}
-                className="mt-2 block w-full min-w-0 rounded-xl border border-slate-600 bg-slate-900 p-3 text-white" />
+                className="mt-2 block w-full min-w-0 max-w-full rounded-xl border border-slate-600 bg-slate-900 p-3 text-base sm:text-sm text-white" />
             </label>
-            <label className="text-sm text-slate-300">Categoria
+            <label className="min-w-0 text-sm text-slate-300">Categoria
               <select value={form.category} disabled={busy} onChange={event => setForm({ ...form, category: event.target.value as Category })}
-                className="mt-2 block w-full rounded-xl border border-slate-600 bg-slate-900 p-3 text-white">
+                className="mt-2 block w-full min-w-0 max-w-full rounded-xl border border-slate-600 bg-slate-900 p-3 text-base sm:text-sm text-white">
                 {categories.map(category => <option key={category}>{category}</option>)}
               </select>
             </label>
           </div>
-          <div className="flex gap-3 justify-end">
+          <div className="flex flex-wrap gap-3 justify-end">
             <button type="button" disabled={busy} onClick={() => setShowForm(false)} className="px-4 py-3 text-sm text-slate-300">Cancelar</button>
             <button type="submit" disabled={busy || !form.note.trim()} className="rounded-xl bg-amber-300 px-4 py-3 text-sm font-bold text-slate-900 disabled:opacity-50">{busy ? 'Salvando…' : 'Salvar lembrete'}</button>
           </div>

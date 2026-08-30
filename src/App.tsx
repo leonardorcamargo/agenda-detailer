@@ -860,7 +860,7 @@ setCompanyId(membership.company_id);
 
   return (
     <div className="min-h-screen bg-[#0d121f] text-slate-100 flex flex-col font-sans antialiased selection:bg-blue-500 selection:text-white">
-      <div className="flex flex-1 min-h-screen">
+      <div className="flex flex-1 min-h-screen w-full min-w-0">
         {/* Left Sidebar Navigation & Mobile Drawer / Bottom Nav */}
         <Sidebar
           settings={shopSettings}
