@@ -941,7 +941,7 @@ const realOSNumber = lastOrder?.os_number
               <option value="Pix">Pix</option>
               <option value="Dinheiro">Dinheiro</option>
               <option value="Cartão de Débito">Débito</option>
-              <option value="Cartão de Crédito">Crédito</option>
+              <option value="Cartão de Crédito">Crédito à vista (1x)</option>
               <option value="Crédito Parcelado">Crédito Parcelado</option>
               <option value="Boleto Parcelado">Boleto Parcelado</option>
               <option value="Fiado">Fiado</option>
@@ -1009,3 +1009,4 @@ const realOSNumber = lastOrder?.os_number
     </form>
   );
 };
+

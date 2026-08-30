@@ -826,7 +826,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                               className="bg-[#0f172a] border border-[#2c3f63] text-white font-bold text-[10px] px-2 py-0.5 rounded focus:outline-none cursor-pointer"
                             >
                               <option value="Pix">Pix</option>
-                              <option value="Cartão de Crédito">Cartão de Crédito</option>
+                              <option value="Cartão de Crédito">Crédito à vista (1x)</option>
+                              <option value="Crédito Parcelado">Crédito Parcelado</option>
+                              <option value="Boleto Parcelado">Boleto Parcelado</option>
                               <option value="Cartão de Débito">Cartão de Débito</option>
                               <option value="Dinheiro">Dinheiro</option>
                               <option value="Fiado">Fiado / A Prazo</option>
@@ -1348,7 +1350,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     <option value="Pix">Pix</option>
                     <option value="Dinheiro">Dinheiro</option>
                     <option value="Cartão de Débito">Débito</option>
-                    <option value="Cartão de Crédito">Crédito</option>
+                    <option value="Cartão de Crédito">Crédito à vista (1x)</option>
                     <option value="Crédito Parcelado">Crédito Parcelado</option>
                     <option value="Boleto Parcelado">Boleto Parcelado</option>
                     <option value="Fiado">Fiado</option>
@@ -1602,3 +1604,4 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     </div>
   );
 };
+
