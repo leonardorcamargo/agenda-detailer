@@ -1,0 +1,1 @@
+O arquivo de logo do Agenda Detailer deve usar a arte original aprovada.
