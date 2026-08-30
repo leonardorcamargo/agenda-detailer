@@ -132,7 +132,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div className="mx-auto max-w-7xl space-y-4 p-3 sm:p-6">
-      <section className="flex flex-col gap-5 rounded-2xl border border-[#23314a] bg-gradient-to-r from-[#101a2b] to-[#0d1422] p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+      <section className="rounded-2xl border border-[#23314a] bg-gradient-to-r from-[#101a2b] to-[#0d1422] p-4 sm:p-5">
         <div className="flex min-w-0 items-center gap-4">
           <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-blue-500/80 bg-[#0b1220] shadow-lg shadow-blue-950/30 sm:h-20 sm:w-20">
             {company.logoUrl ? (
@@ -149,16 +149,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </button>
             </div>
             <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wider text-blue-400">Estética Automotiva</p>
-          </div>
-        </div>
-
-        <div className="flex min-w-[250px] items-center justify-end sm:pl-14">
-          <div className="border-l border-[#2a3850] pl-6 sm:pl-10">
-            <img
-              src="/agenda-detailer-logo.png"
-              alt="Agenda Detailer — Gestão automotiva inteligente"
-              className="h-auto w-[240px] max-w-full object-contain opacity-95 sm:w-[285px]"
-            />
           </div>
         </div>
       </section>
