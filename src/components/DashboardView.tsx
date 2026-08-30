@@ -155,10 +155,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
         <div className="flex items-center sm:pl-10">
           <div className="border-l border-[#2a3850] pl-5 sm:pl-8">
-            <div className="flex items-center gap-2 text-sm font-black tracking-[0.16em] text-slate-300 sm:text-base">
-              <Sparkles className="h-4 w-4 text-blue-500" /> AGENDA DETAILER
+            <div className="flex items-center gap-2.5">
+              <span className="relative flex h-6 w-6 items-center justify-center text-blue-400">
+                <Sparkles className="h-5 w-5 stroke-[1.8]" />
+                <span className="absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full bg-blue-500/80" />
+              </span>
+              <span className="text-[15px] font-black uppercase tracking-[0.18em] text-slate-100 sm:text-[17px]">
+                Agenda Detailer
+              </span>
             </div>
-            <p className="mt-1 text-[9px] uppercase tracking-[0.22em] text-slate-600">Gestão automotiva inteligente</p>
+            <p className="mt-1.5 pl-8 text-[9px] font-medium uppercase tracking-[0.32em] text-slate-600 sm:text-[10px]">
+              Gestão automotiva inteligente
+            </p>
           </div>
         </div>
       </section>
