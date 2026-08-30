@@ -34,7 +34,7 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="flex flex-1 items-center gap-2 sm:gap-3 min-w-0">
         <button
           onClick={onToggleMobileMenu}
-          className="md:hidden p-2 rounded-xl text-slate-300 hover:text-white hover:bg-[#1f293d] transition-colors cursor-pointer shrink-0"
+          className="mobile-menu-toggle md:hidden p-2 rounded-xl text-slate-300 hover:text-white hover:bg-[#1f293d] transition-colors cursor-pointer shrink-0"
           title="Abrir menu de navegação"
         >
           {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -108,4 +108,3 @@ export const Header: React.FC<HeaderProps> = ({
     </header>
   );
 };
-

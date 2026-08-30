@@ -859,8 +859,8 @@ setCompanyId(membership.company_id);
   const carsInYardCount = orders.filter((o) => o.status !== 'Pronto para Entrega').length;
 
   return (
-    <div className="min-h-screen bg-[#0d121f] text-slate-100 flex flex-col font-sans antialiased selection:bg-blue-500 selection:text-white">
-      <div className="flex flex-1 min-h-screen w-full min-w-0">
+    <div className="app-shell min-h-screen bg-[#0d121f] text-slate-100 flex flex-col font-sans antialiased selection:bg-blue-500 selection:text-white">
+      <div className="app-frame flex flex-1 min-h-screen w-full min-w-0">
         {/* Left Sidebar Navigation & Mobile Drawer / Bottom Nav */}
         <Sidebar
           settings={shopSettings}
@@ -876,7 +876,7 @@ setCompanyId(membership.company_id);
         />
 
         {/* Main Content Workspace */}
-        <main className="flex-1 flex flex-col min-w-0 bg-[#0d121f] overflow-y-auto">
+        <main className="app-main flex-1 flex flex-col min-w-0 bg-[#0d121f] overflow-y-auto">
           {/* Top Header */}
           <Header
             settings={shopSettings}

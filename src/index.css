@@ -1,5 +1,73 @@
 @import "tailwindcss";
 
+/* A bounded mobile workspace: content scrolls; navigation occupies its own row.
+   Include short, touch landscape screens so rotating a phone keeps its menu. */
+@media screen and (max-width: 767px),
+       screen and (max-width: 1023px) and (max-height: 500px) and (pointer: coarse) {
+  .app-shell {
+    width: 100%;
+    max-width: 100%;
+    min-height: 0;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+
+  .app-frame {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .app-main {
+    grid-area: 1 / 1;
+    min-height: 0;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-x: none;
+  }
+
+  .app-main > * { min-width: 0; max-width: 100%; }
+
+  .mobile-bottom-nav {
+    display: grid;
+    grid-area: 2 / 1;
+    position: relative;
+    min-width: 0;
+    width: 100%;
+    padding-bottom: calc(0.375rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .desktop-sidebar { display: none; }
+  .mobile-menu-toggle, .mobile-menu-close { display: inline-flex; }
+  .mobile-drawer { display: flex; }
+  .mobile-drawer-panel {
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .mobile-drawer-panel > div { height: auto; min-height: 100%; }
+  .mobile-drawer-panel button { flex-shrink: 0; }
+
+  /* Avoid focus zoom on iPhone without disabling user-controlled pinch zoom. */
+  .app-shell input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  .app-shell select,
+  .app-shell textarea {
+    min-width: 0;
+    max-width: 100%;
+    font-size: max(1rem, 16px);
+  }
+}
+
 /* Remove spinner arrows from all number inputs */
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
@@ -102,4 +170,3 @@ input[type="number"] {
     size: A4 portrait;
   }
 }
-
