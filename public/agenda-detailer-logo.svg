@@ -1,0 +1,18 @@
+<svg width="520" height="120" viewBox="0 0 520 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g" x1="14" y1="12" x2="100" y2="108" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#39C7FF"/>
+      <stop offset="0.45" stop-color="#168BFF"/>
+      <stop offset="1" stop-color="#2457FF"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(8 8)">
+    <path d="M52 4L94 28V76L52 100L10 76V28L52 4Z" stroke="url(#g)" stroke-width="6"/>
+    <path d="M29 76L51 29L75 76" stroke="#F8FAFC" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M18 73C38 60 56 55 85 50" stroke="url(#g)" stroke-width="7" stroke-linecap="round"/>
+    <path d="M80 26L83 34L91 37L83 40L80 48L77 40L69 37L77 34L80 26Z" fill="#35B8FF"/>
+  </g>
+  <text x="126" y="55" fill="#F8FAFC" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="800" letter-spacing="5">AGENDA</text>
+  <text x="128" y="86" fill="#248DFF" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" letter-spacing="11">DETAILER</text>
+  <text x="128" y="108" fill="#63708A" font-family="Arial, Helvetica, sans-serif" font-size="10" font-weight="600" letter-spacing="3">GESTÃO AUTOMOTIVA INTELIGENTE</text>
+</svg>
