@@ -476,7 +476,9 @@ export const OSDetailModal: React.FC<OSDetailModalProps> = ({
                 >
                   <option value="Pendente">Pendente</option>
                   <option value="Pix">Pix</option>
-                  <option value="Cartão de Crédito">Cartão de Crédito</option>
+                  <option value="Cartão de Crédito">Crédito à vista (1x)</option>
+                  <option value="Crédito Parcelado">Crédito Parcelado</option>
+                  <option value="Boleto Parcelado">Boleto Parcelado</option>
                   <option value="Cartão de Débito">Cartão de Débito</option>
                   <option value="Dinheiro">Dinheiro</option>
                   <option value="Fiado">Fiado / A Prazo</option>
@@ -719,3 +721,4 @@ export const OSDetailModal: React.FC<OSDetailModalProps> = ({
     </div>
   );
 };
+

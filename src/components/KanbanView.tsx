@@ -234,7 +234,7 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
                               <option value="Pix" className="bg-[#121929] text-emerald-400">Pix</option>
                               <option value="Dinheiro" className="bg-[#121929] text-emerald-400">Dinheiro</option>
                               <option value="Cartão de Débito" className="bg-[#121929] text-emerald-400">Débito</option>
-                              <option value="Cartão de Crédito" className="bg-[#121929] text-emerald-400">Crédito</option>
+                              <option value="Cartão de Crédito" className="bg-[#121929] text-emerald-400">Crédito à vista (1x)</option>
                               <option value="Crédito Parcelado" className="bg-[#121929] text-emerald-400">Crédito Parcelado</option>
                               <option value="Boleto Parcelado" className="bg-[#121929] text-emerald-400">Boleto Parcelado</option>
                               <option value="Fiado" className="bg-[#121929] text-purple-300">Fiado</option>
@@ -312,3 +312,4 @@ export const KanbanView: React.FC<KanbanViewProps> = ({
     </div>
   );
 };
+
