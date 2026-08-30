@@ -1,0 +1,34 @@
+@media (max-width: 639px) {
+  .dashboard-brand-card {
+    gap: 0.9rem !important;
+    padding: 0.9rem !important;
+  }
+
+  .dashboard-company-logo {
+    width: 3.5rem !important;
+    height: 3.5rem !important;
+  }
+
+  .dashboard-company-name {
+    font-size: 1.125rem !important;
+    line-height: 1.35rem !important;
+  }
+
+  .dashboard-agenda-brand {
+    min-width: 0 !important;
+    width: 100% !important;
+    justify-content: flex-start !important;
+    border-top: 1px solid #23314a;
+    padding-top: 0.75rem;
+  }
+
+  .dashboard-agenda-brand > div {
+    border-left: 0 !important;
+    padding-left: 0 !important;
+  }
+
+  .dashboard-agenda-brand img {
+    width: 175px !important;
+    max-width: 62vw !important;
+  }
+}
