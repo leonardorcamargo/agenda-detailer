@@ -90,7 +90,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           {onCloseMobile && (
             <button
               onClick={onCloseMobile}
-              className="md:hidden ml-2 p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-[#1f293d] transition-colors"
+              className="mobile-menu-close md:hidden ml-2 p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-[#1f293d] transition-colors"
+              aria-label="Fechar menu"
             >
               <X className="w-5 h-5" />
             </button>
@@ -166,32 +167,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      <aside className="hidden md:flex w-64 bg-[#111827] border-r border-[#1f293d] flex-col justify-between shrink-0 select-none">
+      <aside className="desktop-sidebar hidden md:flex w-64 bg-[#111827] border-r border-[#1f293d] flex-col justify-between shrink-0 select-none">
         <SidebarContent />
       </aside>
 
       {isMobileOpen && (
-        <div className="md:hidden fixed inset-0 z-50 flex">
+        <div className="mobile-drawer md:hidden fixed inset-0 z-50 flex">
           <div
             className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm transition-opacity"
             onClick={onCloseMobile}
           />
 
-          <div className="relative w-72 max-w-[80vw] bg-[#111827] border-r border-[#1f293d] flex flex-col justify-between shadow-2xl z-10 h-full">
+          <div className="mobile-drawer-panel relative w-72 max-w-[80vw] bg-[#111827] border-r border-[#1f293d] flex flex-col justify-between shadow-2xl z-10 h-full">
             <SidebarContent />
           </div>
         </div>
       )}
 
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-[#111827]/95 backdrop-blur-md border-t border-[#1f293d] grid grid-cols-4 items-center px-2 py-1.5 shadow-2xl">
+      <nav aria-label="Navegação principal" className="mobile-bottom-nav md:hidden relative z-40 bg-[#111827] border-t border-[#1f293d] grid grid-cols-4 items-center px-2 py-1.5 shadow-2xl">
         {mobileQuickItems.map((item) => {
           const Icon = item.icon;
           const isActive = activeTab === item.id;
           return (
             <button
               key={item.id}
+              aria-current={isActive ? 'page' : undefined}
               onClick={() => handleTabClick(item.id)}
-              className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all relative ${
+              className={`min-w-0 min-h-12 flex flex-col items-center justify-center py-1 px-1 rounded-xl transition-all relative ${
                 isActive ? 'text-blue-400 font-bold' : 'text-slate-400 hover:text-slate-200'
               }`}
             >
