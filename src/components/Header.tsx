@@ -1,6 +1,7 @@
 import React from 'react';
 import { ShopSettings } from '../types';
-import { Wrench, ShieldCheck, PlusCircle, Menu, X, Zap, AlertTriangle } from 'lucide-react';
+import { Wrench, PlusCircle, Menu, X, Zap, AlertTriangle } from 'lucide-react';
+import { AgendaDetailerMark } from './AgendaDetailerBrand';
 
 interface HeaderProps {
   settings: ShopSettings;
@@ -98,17 +99,9 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="sm:hidden text-[11px] font-bold">OS</span>
         </button>
 
-        {/* Detailer Badge / Profile */}
-        <div className="flex items-center gap-2 pl-1.5 sm:pl-2 border-l border-[#26334d]">
-          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-blue-600/20 border border-blue-500/30 flex items-center justify-center text-blue-400 font-bold text-xs shrink-0">
-            {settings.ownerName ? settings.ownerName.charAt(0) : 'D'}
-          </div>
-          <div className="hidden xl:block text-left text-xs">
-            <div className="text-slate-200 font-medium leading-none">{settings.ownerName}</div>
-            <div className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3 text-emerald-400" /> Painel do Detailer
-            </div>
-          </div>
+        {/* Platform brand; user identity remains in the sidebar menu. */}
+        <div className="flex items-center pl-1.5 sm:pl-2 border-l border-[#26334d]" title="Agenda Detailer">
+          <AgendaDetailerMark className="w-8 h-9 sm:w-9 sm:h-10" />
         </div>
       </div>
     </header>

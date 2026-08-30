@@ -30,6 +30,7 @@ import {
 } from './data/mockData';
 
 import { Header } from './components/Header';
+import { AgendaDetailerFooter } from './components/AgendaDetailerBrand';
 import { Sidebar, ActiveTab } from './components/Sidebar';
 import { DashboardView } from './components/DashboardView';
 import { CalendarView } from './components/CalendarView';
@@ -952,8 +953,8 @@ setCompanyId(membership.company_id);
             </div>
           )}
 
-          {/* Views with extra bottom padding for mobile navigation bar */}
-          <div className="flex-1 pb-20 md:pb-10">
+          {/* Shared footer below the views reserves space for mobile navigation. */}
+          <div className="flex-1 pb-6 md:pb-10">
             {activeTab === 'dashboard' && (
               <DashboardView
                 orders={orders}
@@ -1095,6 +1096,7 @@ setCompanyId(membership.company_id);
               />
             )}
           </div>
+          <AgendaDetailerFooter />
         </main>
       </div>
 
