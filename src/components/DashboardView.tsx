@@ -155,9 +155,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="flex min-w-[250px] items-center justify-end sm:pl-14">
           <div className="border-l border-[#2a3850] pl-6 sm:pl-10">
             <img
-              src="/agenda-detailer-logo.svg"
+              src="/agenda-detailer-logo.png"
               alt="Agenda Detailer — Gestão automotiva inteligente"
-              className="h-auto w-[240px] max-w-full opacity-95 sm:w-[285px]"
+              className="h-auto w-[240px] max-w-full object-contain opacity-95 sm:w-[285px]"
             />
           </div>
         </div>
