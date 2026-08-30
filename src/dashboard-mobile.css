@@ -1,34 +1,48 @@
 @media (max-width: 639px) {
-  .dashboard-brand-card {
-    gap: 0.9rem !important;
+  section[class*="from-[#101a2b]"][class*="to-[#0d1422]"] {
+    gap: 0.85rem !important;
     padding: 0.9rem !important;
   }
 
-  .dashboard-company-logo {
+  section[class*="from-[#101a2b]"][class*="to-[#0d1422]"] > div:first-child {
+    gap: 0.75rem !important;
+  }
+
+  section[class*="from-[#101a2b]"][class*="to-[#0d1422]"] > div:first-child > div:first-child {
     width: 3.5rem !important;
     height: 3.5rem !important;
   }
 
-  .dashboard-company-name {
-    font-size: 1.125rem !important;
+  section[class*="from-[#101a2b]"][class*="to-[#0d1422]"] h1 {
+    font-size: 1.15rem !important;
     line-height: 1.35rem !important;
   }
 
-  .dashboard-agenda-brand {
+  section[class*="from-[#101a2b]"][class*="to-[#0d1422]"] > div:last-child {
     min-width: 0 !important;
     width: 100% !important;
     justify-content: flex-start !important;
-    border-top: 1px solid #23314a;
+    padding-left: 0 !important;
     padding-top: 0.75rem;
+    border-top: 1px solid #23314a;
   }
 
-  .dashboard-agenda-brand > div {
+  section[class*="from-[#101a2b]"][class*="to-[#0d1422]"] > div:last-child > div {
+    position: relative;
+    width: 190px;
+    height: 48px;
+    overflow: hidden;
     border-left: 0 !important;
     padding-left: 0 !important;
   }
 
-  .dashboard-agenda-brand img {
-    width: 175px !important;
-    max-width: 62vw !important;
+  section[class*="from-[#101a2b]"][class*="to-[#0d1422]"] > div:last-child img {
+    position: absolute;
+    width: 250px !important;
+    max-width: none !important;
+    height: auto !important;
+    left: -28px;
+    top: -47px;
+    opacity: 0.95;
   }
 }
