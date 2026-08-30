@@ -1,18 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { ServiceOrder, ShopExpense, Appointment } from '../types';
+import { ServiceOrder, Appointment } from '../types';
 import { 
   Wallet, 
   TrendingUp, 
   TrendingDown, 
-  DollarSign, 
   CreditCard, 
-  Plus, 
-  Trash2, 
-  CheckCircle, 
   Clock,
   PieChart as PieChartIcon
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useExpenses } from '../hooks/useExpenses';
+import { ExpenseManager } from './ExpenseManager';
 
 interface PaymentRecord {
   id: string;
@@ -31,9 +29,7 @@ interface FinancialViewProps {
   companyId: string;
   orders: ServiceOrder[];
   appointments: Appointment[];
-  expenses: ShopExpense[];
-  onAddExpense: (expense: ShopExpense) => void;
-  onRemoveExpense: (id: string) => void;
+  role: string | null;
   onUpdatePaymentStatus: (orderId: string, status: 'Pago' | 'Pendente' | 'Parcial' | 'Fiado') => void;
 }
 
@@ -41,14 +37,11 @@ export const FinancialView: React.FC<FinancialViewProps> = ({
   companyId,
   orders,
   appointments,
-  expenses,
-  onAddExpense,
-  onRemoveExpense,
+  role,
   onUpdatePaymentStatus,
 }) => {
-  const [expenseDesc, setExpenseDesc] = useState('');
-  const [expenseCategory, setExpenseCategory] = useState<'Produtos' | 'Equipamentos' | 'Contas / Fixo' | 'Comissão' | 'Outros'>('Produtos');
-  const [expenseValue, setExpenseValue] = useState('');
+  const expenseModel = useExpenses(companyId);
+  const expenses = expenseModel.expenses;
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   useEffect(() => {
   if (!companyId) return;
@@ -117,23 +110,6 @@ export const FinancialView: React.FC<FinancialViewProps> = ({
     paymentMethodStats[method as keyof typeof paymentMethodStats] += Number(payment.amount ?? 0);
   }
 });
-
-  const handleCreateExpense = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!expenseDesc || !expenseValue) return;
-
-    const newExpense: ShopExpense = {
-      id: 'exp_' + Date.now(),
-      date: new Date().toISOString().split('T')[0],
-      description: expenseDesc,
-      category: expenseCategory,
-      value: parseFloat(expenseValue) || 0,
-    };
-
-    onAddExpense(newExpense);
-    setExpenseDesc('');
-    setExpenseValue('');
-  };
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
@@ -205,7 +181,7 @@ export const FinancialView: React.FC<FinancialViewProps> = ({
           </div>
           <div className="mt-3">
             <div className="text-xl font-extrabold text-rose-400">
-              R$ {totalExpensesValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              {expenseModel.loading || expenseModel.error ? '—' : `R$ ${totalExpensesValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
             </div>
             <p className="text-[11px] text-slate-400 mt-1">Custos fixos e insumos</p>
           </div>
@@ -221,7 +197,7 @@ export const FinancialView: React.FC<FinancialViewProps> = ({
           </div>
           <div className="mt-3">
             <div className="text-xl font-extrabold text-blue-400">
-              R$ {netProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+              {expenseModel.loading || expenseModel.error ? '—' : `R$ ${netProfit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
             </div>
             <p className="text-[11px] text-slate-400 mt-1">Recebido (-) Despesas</p>
           </div>
@@ -249,85 +225,7 @@ export const FinancialView: React.FC<FinancialViewProps> = ({
 
       {/* Expenses & OS Payment Status Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Column: Register & Manage Expenses */}
-        <div className="bg-[#141c2b] border border-[#23314a] rounded-2xl p-5 space-y-4">
-          <h3 className="text-sm font-bold text-white tracking-tight">Registrar Despesa / Custo</h3>
-
-          <form onSubmit={handleCreateExpense} className="space-y-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-300 mb-1">Descrição</label>
-              <input
-                type="text"
-                value={expenseDesc}
-                onChange={(e) => setExpenseDesc(e.target.value)}
-                placeholder="Ex: Compra de Polidores Vonixx"
-                className="w-full bg-[#182338] border border-[#283854] text-white px-3.5 py-2 rounded-xl text-xs focus:outline-none focus:border-blue-500"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Categoria</label>
-                <select
-                  value={expenseCategory}
-                  onChange={(e: any) => setExpenseCategory(e.target.value)}
-                  className="w-full bg-[#182338] border border-[#283854] text-white px-3.5 py-2 rounded-xl text-xs focus:outline-none focus:border-blue-500"
-                >
-                  <option value="Produtos">Produtos / Insumos</option>
-                  <option value="Equipamentos">Equipamentos</option>
-                  <option value="Contas / Fixo">Contas / Fixo</option>
-                  <option value="Comissão">Comissão de Staff</option>
-                  <option value="Outros">Outros</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Valor (R$)</label>
-                <input
-                  type="number"
-                  value={expenseValue}
-                  onChange={(e) => setExpenseValue(e.target.value)}
-                  placeholder="0,00"
-                  className="w-full bg-[#182338] border border-[#283854] text-white px-3.5 py-2 rounded-xl text-xs focus:outline-none focus:border-blue-500 text-right"
-                  required
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="w-full bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/40 font-bold text-xs py-2.5 rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Plus className="w-4 h-4" /> Lançar Despesa
-            </button>
-          </form>
-
-          {/* Expenses List */}
-          <div className="space-y-2 pt-2 border-t border-[#23314a]">
-            <span className="text-xs font-medium text-slate-400">Histórico de Lançamentos:</span>
-            {expenses.map((e) => (
-              <div
-                key={e.id}
-                className="flex items-center justify-between bg-[#182338] border border-[#263757] px-3 py-2 rounded-xl text-xs"
-              >
-                <div>
-                  <div className="font-semibold text-white">{e.description}</div>
-                  <span className="text-[10px] text-slate-400">{e.date} • {e.category}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="font-bold text-rose-400">- R$ {e.value.toFixed(2)}</span>
-                  <button
-                    onClick={() => onRemoveExpense(e.id)}
-                    className="text-slate-500 hover:text-rose-400 transition-colors p-1"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <ExpenseManager model={expenseModel} role={role} />
 
         {/* Right Column: Recebimentos */}
 <div className="bg-[#141c2b] border border-[#23314a] rounded-2xl p-5 space-y-4">

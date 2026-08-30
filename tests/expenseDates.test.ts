@@ -1,0 +1,12 @@
+import assert from 'node:assert/strict';
+import { localDate, monthlyDueDate } from '../src/lib/expenseDates';
+assert.equal(monthlyDueDate('2026-02', 31), '2026-02-28');
+assert.equal(monthlyDueDate('2028-02', 31), '2028-02-29');
+assert.equal(monthlyDueDate('2026-04', 31), '2026-04-30');
+assert.equal(monthlyDueDate('2026-03', 31), '2026-03-31');
+assert.equal(monthlyDueDate('2026-12', 1), '2026-12-01');
+assert.equal(localDate(new Date(2026, 0, 1, 0, 10)), '2026-01-01');
+assert.throws(() => monthlyDueDate('2026-13', 1));
+assert.throws(() => monthlyDueDate('', 1));
+assert.throws(() => monthlyDueDate('2026-02', 0));
+console.log('PASS: month-end, leap year, date boundaries and invalid inputs');

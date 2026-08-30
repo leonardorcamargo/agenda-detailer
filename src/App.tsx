@@ -7,7 +7,6 @@ import {
   ProductItem,
   ServiceComboItem,
   ShopSettings, 
-  ShopExpense, 
   OSStatus,
   StaffMember,
   Appointment,
@@ -21,7 +20,6 @@ import {
   INITIAL_PRODUCTS_CATALOG,
   INITIAL_COMBOS_CATALOG,
   INITIAL_SHOP_SETTINGS, 
-  INITIAL_EXPENSES,
   INITIAL_STAFF,
   DEMO_SAAS_TENANTS,
   INITIAL_APPOINTMENTS,
@@ -203,7 +201,6 @@ setCompanyId(membership.company_id);
     void loadCompany();
   }, [isAuthenticated]);
 
-  const [expenses, setExpenses] = useState<ShopExpense[]>(INITIAL_EXPENSES);
   const [staffList, setStaffList] = useState<StaffMember[]>(INITIAL_STAFF);
 
   // Calendar & Scheduling State
@@ -1017,12 +1014,11 @@ setCompanyId(membership.company_id);
 
             {activeTab === 'financeiro' && (
               <FinancialView
+                key={companyId}
                 companyId={companyId}
                 orders={orders}
                 appointments={appointments}
-                expenses={expenses}
-                onAddExpense={(e) => setExpenses([e, ...expenses])}
-                onRemoveExpense={(id) => setExpenses(expenses.filter((e) => e.id !== id))}
+                role={currentRole}
                 onUpdatePaymentStatus={handleUpdatePaymentStatus}
               />
             )}
