@@ -155,7 +155,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       <section className="px-1 py-1">
         <h2 className="text-xl font-black text-white sm:text-2xl">{greeting}{userName ? `, ${userName}` : ''}!</h2>
-        <p className="mt-1 text-xs capitalize text-slate-500 sm:text-sm">Aqui está o que está acontecendo hoje · {todayLabel}</p>
+        <p className="mt-1 text-xs capitalize text-slate-500 sm:text-sm">{todayLabel}</p>
       </section>
 
       <section className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
