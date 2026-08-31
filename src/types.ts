@@ -156,6 +156,8 @@ export interface SaaSUserTenant {
 }
 
 export interface StaffMember {
+  workDays?: number[]; // 0 = domingo; undefined = escala não definida
+  workScheduleFrom?: string; // Vigência da escala atual
   id: string;
   name: string;
   role: 'Master Detailer' | 'Polidor Especialista' | 'Higienizador' | 'Lavador Técnico' | 'Ajudante / Aprendiz' | 'Gerente de Pátio' | 'Freelancer / Diarista' | 'Empreiteiro';
@@ -204,7 +206,10 @@ export interface StaffWorkLog {
   date: string; // YYYY-MM-DD
   staffId: string;
   staffName: string;
-  status: 'Presente' | 'Meio Período' | 'Falta' | 'Folga';
+  status: 'Presente' | 'Meio Período' | 'Falta' | 'Folga' | 'Atraso' | 'Saída antecipada' | 'Atraso e saída antecipada' | 'Por horário';
+  arrivalTime?: string;
+  departureTime?: string;
+  departureNextDay?: boolean;
   dailyRateCharged?: number;
   notes?: string;
 }

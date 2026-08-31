@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { StaffMember, ServiceOrder, StaffWorkLog } from '../types';
 import { brazilDate } from '../lib/financialPeriod';
 import { StaffAttendance } from './StaffAttendance';
-import { attendanceOnDay } from '../lib/staffDay';
+import { isFixed, workStatuses } from '../lib/attendance';
 import { 
   Users, 
   Plus, 
@@ -198,6 +198,8 @@ export const StaffView: React.FC<StaffViewProps> = ({
         specialties: formData.specialties || [],
         pixKey: formData.pixKey || '',
         notes: formData.notes || '',
+        workDays: formData.workDays,
+        workScheduleFrom: formData.workDays ? formData.workScheduleFrom || brazilDate(new Date())! : undefined,
       });
     } else {
       const newStaff: StaffMember = {
@@ -214,6 +216,8 @@ export const StaffView: React.FC<StaffViewProps> = ({
         specialties: formData.specialties || [],
         pixKey: formData.pixKey || '',
         notes: formData.notes || '',
+        workDays: formData.workDays,
+        workScheduleFrom: formData.workDays ? formData.workScheduleFrom || brazilDate(new Date())! : undefined,
       };
       saved = await onAddStaff(newStaff);
     }
@@ -266,18 +270,18 @@ export const StaffView: React.FC<StaffViewProps> = ({
     <div className="p-3 sm:p-6 space-y-6 max-w-7xl mx-auto">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div><h2 className="text-xl font-bold text-white">Dia a dia da equipe</h2>
-          <p className="mt-1 text-sm text-slate-400">Confira presenças e veja quem está cuidando de cada serviço.</p></div>
+          <p className="mt-1 text-sm text-slate-400">Fixos: registre ocorrências. Diaristas e freelancers: registre quando trabalharem.</p></div>
         <button type="button" disabled={busy || !canManage} onClick={handleOpenAddModal} className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white">
           <UserPlus className="h-4 w-4" /> Adicionar pessoa
         </button>
       </div>
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[#23314a] bg-[#151e30] p-3">
-        <label className="flex min-w-0 flex-wrap items-center gap-2 text-sm text-slate-300">Presenças de
-          <input aria-label="Data das presenças" disabled={busy} type="date" value={workDay} onChange={event => { if (event.target.value) setWorkDay(event.target.value); }}
+        <label className="flex min-w-0 flex-wrap items-center gap-2 text-sm text-slate-300">Registros de
+          <input aria-label="Data dos registros" disabled={busy} type="date" value={workDay} onChange={event => { if (event.target.value) setWorkDay(event.target.value); }}
             className="min-w-0 rounded-lg border border-slate-600 bg-slate-900 p-2 text-white" />
         </label>
-        <span className="text-sm text-emerald-300">{staffList.filter(staff => ['Presente', 'Meio Período'].includes(attendanceOnDay(staff, staffWorkLogs, workDay))).length} com presença registrada</span>
-        <p className="text-sm text-slate-300">Marque a situação no cartão de cada pessoa e salve.</p>
+        <span className="text-sm text-emerald-300">{staffWorkLogs.filter(log => log.date === workDay).length} registro(s) neste dia</span>
+        <p className="text-sm text-slate-300">Use Registrar ocorrência ou Registrar trabalho no cartão.</p>
       </div>
       {unassignedOrders.length > 0 && <button type="button" onClick={() => setActiveTab('distribuicao')}
         className="w-full rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-left text-sm text-amber-200">
@@ -338,7 +342,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
             }`}
           >
             <UserCheck className="w-4 h-4 text-emerald-400" />
-            <span>Presenças</span>
+            <span>Histórico</span>
           </button>
         </div>
 
@@ -567,6 +571,8 @@ export const StaffView: React.FC<StaffViewProps> = ({
                     <span className="text-slate-300">Dia a dia</span>
                     <span className="text-blue-300">{metrics.activeOrdersCount} serviço(s) no pátio</span>
                   </div>
+                  {isFixed(staff) && canManage && <button type="button" disabled={busy} onClick={() => handleOpenEditModal(staff)}
+                    className="text-left text-xs font-semibold text-blue-300 underline">{staff.workDays ? 'Editar dias de trabalho' : 'Definir dias de trabalho'}</button>}
                   <StaffAttendance staff={staff} logs={staffWorkLogs} date={workDay} busy={busy} canManage={canManage} canDelete={canDelete} onSave={onSaveAttendance} onDelete={onDeleteAttendance} />
                   {metrics.activeOrdersList.length > 0 && <div className="space-y-2">
                     {metrics.activeOrdersList.slice(0, 2).map(order => <button type="button" key={order.id} onClick={() => onOpenOSModal(order)}
@@ -992,16 +998,18 @@ export const StaffView: React.FC<StaffViewProps> = ({
         </div>
       )}
 
-      {/* TAB 4: Resumo de Presenças & Diárias Trabalhadas */}
+      {/* TAB 4: Resumo de Ocorrências & Trabalhos Trabalhadas */}
       {activeTab === 'presencas' && (
         <div className="space-y-6">
+          <p className="text-sm text-slate-300">Fixos não precisam de presença diária. Consulte atrasos e saídas no calendário individual. Trabalhos e valores abaixo são somente lançamentos explícitos.</p>
+          <p className="text-sm text-amber-300">{staffWorkLogs.filter(log => log.status.includes('traso')).length} atraso(s) · {staffWorkLogs.filter(log => log.status.includes('saída') || log.status === 'Saída antecipada').length} saída(s) antecipada(s)</p>
           {/* KPI Summary Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
             <div className="bg-[#151e30] border border-[#23314a] p-4 rounded-2xl flex items-center justify-between">
               <div>
-                <p className="text-xs text-slate-400 font-medium">Presenças Registradas</p>
+                <p className="text-xs text-slate-400 font-medium">Trabalhos registrados</p>
                 <h3 className="text-2xl font-black text-emerald-400 mt-1">
-                  {staffWorkLogs.filter((l) => l.status === 'Presente' || l.status === 'Meio Período').length}
+                  {staffWorkLogs.filter((l) => workStatuses.includes(l.status)).length}
                 </h3>
                 <p className="text-[11px] text-emerald-400/80 font-medium mt-1 flex items-center gap-1">
                   <UserCheck className="w-3 h-3" /> Dias trabalhados
@@ -1063,7 +1071,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
             <div className="flex items-center justify-between border-b border-[#23314a] pb-3">
               <div>
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Users className="w-5 h-5 text-amber-400" /> Histórico de presenças por pessoa
+                  <Users className="w-5 h-5 text-amber-400" /> Histórico de registros por pessoa
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
                   Todos os registros carregados, sem filtro de data. Diárias registradas não são confirmação de pagamento.
@@ -1077,7 +1085,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
                   <tr className="border-b border-[#23314a] text-slate-400 uppercase text-[10px] tracking-wider font-semibold">
                     <th className="py-3 px-3">Colaborador</th>
                     <th className="py-3 px-3">Vínculo</th>
-                    <th className="py-3 px-3 text-center">Presenças</th>
+                    <th className="py-3 px-3 text-center">Trabalhos / Ocorrências</th>
                     <th className="py-3 px-3 text-center">Faltas</th>
                     <th className="py-3 px-3 text-center">Folgas</th>
                     <th className="py-3 px-3 text-right">Valor Diária</th>
@@ -1087,7 +1095,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
                 <tbody className="divide-y divide-[#1f293d]">
                   {staffList.map((staff) => {
                     const logs = staffWorkLogs.filter((l) => l.staffId === staff.id);
-                    const presencesCount = logs.filter((l) => l.status === 'Presente' || l.status === 'Meio Período').length;
+                    const presencesCount = logs.filter((l) => workStatuses.includes(l.status)).length;
                     const faltasCount = logs.filter((l) => l.status === 'Falta').length;
                     const folgasCount = logs.filter((l) => l.status === 'Folga').length;
                     const totalDiariasVal = logs.reduce((sum, l) => sum + (l.dailyRateCharged || 0), 0);
@@ -1109,7 +1117,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
 
                         <td className="py-3 px-3 text-center">
                           <span className="bg-emerald-500/20 text-emerald-300 font-black text-xs px-2.5 py-0.5 rounded-full border border-emerald-500/30">
-                            {presencesCount} dias
+                            {isFixed(staff) ? logs.filter(log => ['Falta', 'Atraso', 'Saída antecipada', 'Atraso e saída antecipada'].includes(log.status)).length + ' ocorrência(s)' : presencesCount + ' dia(s)'}
                           </span>
                         </td>
 
@@ -1238,6 +1246,24 @@ export const StaffView: React.FC<StaffViewProps> = ({
                 />
               </div>
 
+              {formData.contractType === 'Fixo / CLT' && <div className="space-y-3 rounded-xl border border-slate-600 p-3">
+                <h4 className="text-sm font-bold text-white">Escala semanal</h4>
+                <p className="text-xs text-slate-400">Marque os dias habituais. Sem configuração, não presumimos dias de trabalho. Esta é a escala atual; ocorrências já salvas não mudam.</p>
+                <div className="flex flex-wrap gap-3">
+                  {[['Seg', 1], ['Ter', 2], ['Qua', 3], ['Qui', 4], ['Sex', 5], ['Sáb', 6], ['Dom', 0]].map(([label, day]) => <label key={day} className="flex items-center gap-1 text-xs text-slate-200">
+                    <input type="checkbox" checked={formData.workDays?.includes(Number(day)) || false} onChange={e => setFormData({
+                      ...formData, workDays: e.target.checked ? [...(formData.workDays || []), Number(day)] : (formData.workDays || []).filter(value => value !== Number(day)),
+                      workScheduleFrom: formData.workScheduleFrom || brazilDate(new Date())!
+                    })} />{label}
+                  </label>)}
+                </div>
+                {formData.workDays && <label className="block text-xs text-slate-300">Escala atual válida a partir de
+                  <input type="date" required value={formData.workScheduleFrom || brazilDate(new Date())!}
+                    onChange={e => setFormData({ ...formData, workScheduleFrom: e.target.value })}
+                    className="mt-1 block max-w-full rounded-lg bg-slate-900 p-2 text-white" />
+                </label>}
+                <p className="text-xs text-slate-400">Não considera feriados automaticamente: use Folga excepcional nesses dias.</p>
+              </div>}
               {/* Vínculo / Tipo de Contrato (Informal vs Fixo) */}
               <div className="bg-[#111827] border border-[#23314a] p-3.5 rounded-xl space-y-2">
                 <label className="block text-xs font-bold text-amber-300 flex items-center gap-1.5">

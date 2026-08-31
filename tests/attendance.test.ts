@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { attendanceMonth, attendancePayload, attendanceStatuses, suggestedDailyRate } from '../src/lib/attendance';
+import { attendanceMonth, attendancePayload, attendanceStatuses, blankDayLabel, durationMinutes, fixedStatuses, mergeOccurrenceStatus, staffAttendancePayload, suggestedDailyRate, workStatuses } from '../src/lib/attendance';
 import type { StaffMember, StaffWorkLog } from '../src/types';
 const staff = { id: 'person', name: 'Teste', dailyRate: 181.5, commissionType: 'Diária Fixa' } as StaffMember;
 const log: StaffWorkLog = { id: '', staffId: staff.id, staffName: staff.name, date: '2026-08-31', status: 'Presente', dailyRateCharged: 0 };
@@ -16,7 +16,7 @@ assert.equal(attendancePayload({ ...log, notes: ' nota ' }, 'company').notes, 'n
 assert.equal(attendancePayload(log, 'company').company_id, 'company');
 assert.equal(attendancePayload(log, 'company').staff_id, staff.id);
 assert.equal(attendancePayload(log, 'company').notes, null);
-for (const status of attendanceStatuses) assert.equal(attendancePayload({ ...log, status }, 'company').status, status);
+for (const status of attendanceStatuses) assert.equal(attendancePayload({ ...log, status, arrivalTime: '09:00', departureTime: '16:30' }, 'company').status, status);
 for (const amount of [-1, NaN, Infinity]) assert.throws(() => attendancePayload({ ...log, dailyRateCharged: amount }, 'company'));
 for (const date of ['2026-02-29', '2026-13-01', 'bad']) assert.throws(() => attendancePayload({ ...log, date }, 'company'));
 assert.throws(() => attendancePayload({ ...log, status: 'Unknown' as any }, 'company'));
@@ -27,4 +27,34 @@ assert.equal(attendanceMonth('2026-08').dates.at(-1), '2026-08-31');
 assert.equal(attendanceMonth('2027-02').offset, 0);
 assert.equal(attendanceMonth('2027-01').dates[0], '2027-01-01');
 assert.throws(() => attendanceMonth('2026-13'));
-console.log('attendance: OK');
+const fixed = { ...staff, contractType: 'Fixo / CLT', workDays: [1,2,3,4,5], workScheduleFrom: '2026-08-01' } as StaffMember;
+assert.equal(suggestedDailyRate(fixed, 'Presente'), 0);
+assert.equal(blankDayLabel(fixed, '2026-08-31', '2026-08-31'), 'Sem ocorrência registrada');
+assert.equal(blankDayLabel(fixed, '2026-08-30', '2026-08-31'), 'Fora da escala');
+assert.equal(blankDayLabel(fixed, '2026-09-01', '2026-08-31'), 'Previsto na escala');
+assert.equal(blankDayLabel(fixed, '2026-07-31', '2026-08-31'), 'Escala não definida');
+assert.equal(blankDayLabel({ ...fixed, workDays: undefined }, log.date), 'Escala não definida');
+assert.equal(blankDayLabel(staff, log.date), 'Sem trabalho registrado');
+assert.equal(blankDayLabel({ ...fixed, workDays: [] }, log.date), 'Fora da escala');
+assert.equal(durationMinutes('08:15', '12:30'), 255);
+assert.equal(durationMinutes('22:00', '02:30', true), 270);
+for (const [start, end, next] of [['08:00','08:00',false], ['22:00','02:00',false], ['08:00','10:00',true], ['24:00','12:00',false]] as const)
+  assert.throws(() => durationMinutes(start, end, next));
+for (const status of fixedStatuses) {
+  const result = staffAttendancePayload({ ...log, status, arrivalTime: '09:00', departureTime: '16:00', dailyRateCharged: 200 }, fixed, 'company');
+  assert.equal(result.daily_rate_charged, 0);
+}
+assert.throws(() => staffAttendancePayload(log, fixed, 'company'));
+assert.throws(() => staffAttendancePayload({ ...log, status: 'Falta' }, staff, 'company'));
+assert.throws(() => staffAttendancePayload({ ...log, staffId: 'other' }, staff, 'company'));
+for (const status of ['Atraso', 'Saída antecipada', 'Atraso e saída antecipada', 'Por horário'] as const)
+  assert.throws(() => attendancePayload({ ...log, status }, 'company'));
+const late = attendancePayload({ ...log, status: 'Atraso', arrivalTime: '09:20', departureTime: '14:00', departureNextDay: true }, 'company');
+assert.equal(late.departure_time, null);
+assert.equal(late.departure_next_day, false);
+assert.ok(!fixedStatuses.includes('Presente'));
+assert.ok(!workStatuses.includes('Falta'));
+assert.equal(mergeOccurrenceStatus('Saída antecipada', 'Atraso'), 'Atraso e saída antecipada');
+assert.equal(mergeOccurrenceStatus('Atraso', 'Saída antecipada'), 'Atraso e saída antecipada');
+assert.equal(mergeOccurrenceStatus('Falta', 'Atraso'), 'Falta');
+console.log('attendance: OK — contract rules, scale, occurrences, times and amounts');
