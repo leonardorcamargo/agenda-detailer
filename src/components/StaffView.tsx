@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StaffMember, ServiceOrder, StaffWorkLog } from '../types';
 import { brazilDate } from '../lib/financialPeriod';
 import { StaffAttendance } from './StaffAttendance';
+import { ClockSheet } from './ClockSheet';
 import { isFixed, workStatuses } from '../lib/attendance';
 import { 
   Users, 
@@ -34,6 +35,8 @@ import {
 } from 'lucide-react';
 
 interface StaffViewProps {
+  companyId: string;
+  onReviewClock: () => void;
   busy: boolean;
   canManage: boolean;
   canDelete: boolean;
@@ -51,6 +54,7 @@ interface StaffViewProps {
 }
 
 export const StaffView: React.FC<StaffViewProps> = ({
+  companyId, onReviewClock,
   busy, canManage, canDelete, onSaveAttendance, onDeleteAttendance,
   staffList,
   orders,
@@ -63,7 +67,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
   onOpenAttendance,
 }) => {
   // State
-  const [activeTab, setActiveTab] = useState<'equipe' | 'distribuicao' | 'comissoes' | 'presencas'>('equipe');
+  const [activeTab, setActiveTab] = useState<'equipe' | 'distribuicao' | 'comissoes' | 'presencas' | 'folha'>('equipe');
   const [searchTerm, setSearchTerm] = useState('');
   const [workDay, setWorkDay] = useState(() => brazilDate(new Date())!);
   const [statusFilter, setStatusFilter] = useState<'Todos' | 'Ativo' | 'Inativo' | 'Férias'>('Todos');
@@ -344,6 +348,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
             <UserCheck className="w-4 h-4 text-emerald-400" />
             <span>Histórico</span>
           </button>
+          <button onClick={() => setActiveTab('folha')} className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 ${activeTab === 'folha' ? 'bg-blue-600 text-white' : 'bg-[#151e30] text-slate-300 border border-[#23314a]'}`}><CalendarCheck className="w-4 h-4" />Folha de ponto</button>
         </div>
 
       </div>
@@ -417,6 +422,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
       </details>
 
       {/* TAB 1: Equipe & Produtividade */}
+      {activeTab === 'folha' && <ClockSheet companyId={companyId} staffList={staffList} onReview={onReviewClock} />}
       {activeTab === 'equipe' && (
         <div className="space-y-4">
           {/* Search & Filter Bar */}
