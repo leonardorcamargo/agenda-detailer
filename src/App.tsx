@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
+import { useTeam } from './hooks/useTeam';
 import confetti from 'canvas-confetti';
 import { 
   ServiceOrder, 
@@ -8,10 +9,8 @@ import {
   ServiceComboItem,
   ShopSettings, 
   OSStatus,
-  StaffMember,
   Appointment,
   DailyCalendarNote,
-  StaffWorkLog,
   PaymentMethod
 } from './types';
 import { 
@@ -20,11 +19,9 @@ import {
   INITIAL_PRODUCTS_CATALOG,
   INITIAL_COMBOS_CATALOG,
   INITIAL_SHOP_SETTINGS, 
-  INITIAL_STAFF,
   DEMO_SAAS_TENANTS,
   INITIAL_APPOINTMENTS,
   INITIAL_DAILY_NOTES,
-  INITIAL_STAFF_WORK_LOGS
 } from './data/mockData';
 
 import { Header } from './components/Header';
@@ -203,12 +200,12 @@ setCompanyId(membership.company_id);
     void loadCompany();
   }, [isAuthenticated]);
 
-  const [staffList, setStaffList] = useState<StaffMember[]>(INITIAL_STAFF);
+  const team = useTeam(isAuthenticated ? companyId : '', currentRole);
+  const { staffList, staffWorkLogs } = team;
 
   // Calendar & Scheduling State
   const [appointments, setAppointments] = useState<Appointment[]>(INITIAL_APPOINTMENTS);
   const [dailyNotes, setDailyNotes] = useState<DailyCalendarNote[]>(INITIAL_DAILY_NOTES);
-  const [staffWorkLogs, setStaffWorkLogs] = useState<StaffWorkLog[]>(INITIAL_STAFF_WORK_LOGS);
 
   // Modal State
   const [selectedOrderForModal, setSelectedOrderForModal] = useState<ServiceOrder | null>(null);
@@ -607,22 +604,6 @@ setCompanyId(membership.company_id);
     setDailyNotes(dailyNotes.filter((n) => n.id !== id));
   };
 
-  const handleSaveStaffWorkLog = (log: StaffWorkLog) => {
-    // Replace existing log for same staff on same date or add new
-    const existingIndex = staffWorkLogs.findIndex((w) => w.staffId === log.staffId && w.date === log.date);
-    if (existingIndex >= 0) {
-      const updated = [...staffWorkLogs];
-      updated[existingIndex] = log;
-      setStaffWorkLogs(updated);
-    } else {
-      setStaffWorkLogs([log, ...staffWorkLogs]);
-    }
-  };
-
-  const handleDeleteStaffWorkLog = (id: string) => {
-    setStaffWorkLogs(staffWorkLogs.filter((w) => w.id !== id));
-  };
-
   // Handlers
   const handleLoginSuccess = (email: string, customTenant?: { name: string; category?: any }) => {
     // Check if matching a demo tenant
@@ -972,7 +953,11 @@ setCompanyId(membership.company_id);
               />
             )}
 
-            {activeTab === 'agendamento' && (
+            {(activeTab === 'agendamento' || activeTab === 'mao-de-obra') && <div aria-live="polite">
+              {team.loading && <p className="p-3 text-slate-300">Carregando equipe e presenças…</p>}
+              {team.error && <div role="alert" className="rounded-xl bg-rose-950 p-3 text-rose-200">{team.error} <button type="button" disabled={team.busy} onClick={team.reload} className="underline">Tentar novamente</button></div>}
+            </div>}
+            {activeTab === 'agendamento' && team.ready && (
               <CalendarView
                 companyId={companyId}
                 initialAttendanceDate={attendanceDate}
@@ -988,8 +973,11 @@ setCompanyId(membership.company_id);
                 onConvertAppointmentToOS={handleConvertAppointmentToOS}
                 onAddDailyNote={handleAddDailyNote}
                 onDeleteDailyNote={handleDeleteDailyNote}
-                onSaveStaffWorkLog={handleSaveStaffWorkLog}
-                onDeleteStaffWorkLog={handleDeleteStaffWorkLog}
+                onSaveStaffWorkLog={team.saveLog}
+                attendanceBusy={team.busy}
+                canManageAttendance={team.canManage}
+                canDeleteAttendance={team.canDelete}
+                onDeleteStaffWorkLog={team.deleteLog}
               />
             )}
 
@@ -1031,14 +1019,20 @@ setCompanyId(membership.company_id);
               />
             )}
 
-            {activeTab === 'mao-de-obra' && (
+            {activeTab === 'mao-de-obra' && team.ready && (
               <StaffView
+                key={companyId}
+                busy={team.busy}
+                canManage={team.canManage}
+                canDelete={team.canDelete}
+                onSaveAttendance={team.saveLog}
+                onDeleteAttendance={team.deleteLog}
                 staffList={staffList}
                 orders={orders}
                 staffWorkLogs={staffWorkLogs}
-                onAddStaff={(staff) => setStaffList([...staffList, staff])}
-                onUpdateStaff={(staff) => setStaffList(staffList.map((s) => (s.id === staff.id ? staff : s)))}
-                onRemoveStaff={(id) => setStaffList(staffList.filter((s) => s.id !== id))}
+                onAddStaff={team.addStaff}
+                onUpdateStaff={team.updateStaff}
+                onRemoveStaff={team.deactivateStaff}
                 onReassignOrder={handleUpdateDetailer}
                 onOpenAttendance={(date) => {
                   setAttendanceDate(date);

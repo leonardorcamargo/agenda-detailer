@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { brazilDate } from '../lib/financialPeriod';
+import { StaffAttendance } from './StaffAttendance';
 import { supabase } from '../lib/supabase';
 import { 
   Appointment, 
@@ -39,6 +41,9 @@ import {
 } from 'lucide-react';
 
 interface CalendarViewProps {
+  attendanceBusy: boolean;
+  canManageAttendance: boolean;
+  canDeleteAttendance: boolean;
   companyId: string;
   initialAttendanceDate?: string;
   appointments: Appointment[];
@@ -53,11 +58,12 @@ interface CalendarViewProps {
   onConvertAppointmentToOS: (apt: Appointment) => void;
   onAddDailyNote: (note: DailyCalendarNote) => void;
   onDeleteDailyNote: (id: string) => void;
-  onSaveStaffWorkLog: (log: StaffWorkLog) => void;
-  onDeleteStaffWorkLog: (id: string) => void;
+  onSaveStaffWorkLog: (log: StaffWorkLog) => Promise<boolean>;
+  onDeleteStaffWorkLog: (id: string) => Promise<boolean>;
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
+  attendanceBusy, canManageAttendance, canDeleteAttendance,
   companyId,
   initialAttendanceDate,
   appointments,
@@ -76,10 +82,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onDeleteStaffWorkLog,
 }) => {
   // Calendar navigation state (Year, Month 0-indexed)
-  const todayISO = new Date().toISOString().split('T')[0]; // e.g. "2026-08-11"
-  const [currentYear, setCurrentYear] = useState<number>(initialAttendanceDate ? Number(initialAttendanceDate.slice(0, 4)) : 2026);
-  const [currentMonth, setCurrentMonth] = useState<number>(initialAttendanceDate ? Number(initialAttendanceDate.slice(5, 7)) - 1 : 7);
-  const [selectedDate, setSelectedDate] = useState<string>(initialAttendanceDate || (todayISO.startsWith('2026-08') ? todayISO : '2026-08-11'));
+  const todayISO = brazilDate(new Date())!;
+  const initialDay = initialAttendanceDate || todayISO;
+  const [currentYear, setCurrentYear] = useState<number>(Number(initialDay.slice(0, 4)));
+  const [currentMonth, setCurrentMonth] = useState<number>(Number(initialDay.slice(5, 7)) - 1);
+  const [selectedDate, setSelectedDate] = useState<string>(initialDay);
 
   // Selected Date Panel sub-tab
   const [dateDetailTab, setDateDetailTab] = useState<'agendamentos' | 'observacoes' | 'presenca'>(initialAttendanceDate ? 'presenca' : 'agendamentos');
@@ -89,7 +96,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [editingApt, setEditingApt] = useState<Appointment | null>(null);
 
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
-  const [isStaffLogModalOpen, setIsStaffLogModalOpen] = useState(false);
 
   // Filter for appointment search
   const [searchTerm, setSearchTerm] = useState('');
@@ -204,20 +210,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     setCustomAptServiceName('');
     setCustomAptServicePrice('');
   };
-
-  const [staffLogForm, setStaffLogForm] = useState<{
-    date: string;
-    staffId: string;
-    status: StaffWorkLog['status'];
-    dailyRateCharged: number;
-    notes: string;
-  }>({
-    date: selectedDate,
-    staffId: staffList[0]?.id || '',
-    status: 'Presente',
-    dailyRateCharged: staffList[0]?.dailyRate || 180,
-    notes: '',
-  });
 
   // Calendar Math Helpers
   const MONTH_NAMES = [
@@ -354,28 +346,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     onAddDailyNote(newNote);
     setNoteForm({ note: '', category: 'Geral' });
     setIsNoteModalOpen(false);
-  };
-
-  // Staff Work Log Save Handler
-  const handleSaveStaffLog = (e: React.FormEvent) => {
-    e.preventDefault();
-    const targetStaff = staffList.find((s) => s.id === staffLogForm.staffId);
-    if (!targetStaff) return;
-
-    const targetDate = staffLogForm.date || selectedDate;
-
-    const newLog: StaffWorkLog = {
-      id: 'wl-' + Date.now(),
-      date: targetDate,
-      staffId: targetStaff.id,
-      staffName: targetStaff.name,
-      status: staffLogForm.status,
-      dailyRateCharged: (staffLogForm.status === 'Falta' || staffLogForm.status === 'Folga') ? 0 : (Number(staffLogForm.dailyRateCharged) || targetStaff.dailyRate || 0),
-      notes: staffLogForm.notes,
-    };
-
-    onSaveStaffWorkLog(newLog);
-    setIsStaffLogModalOpen(false);
   };
 
   // WhatsApp Message Launcher
@@ -533,9 +503,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
                 <button
                   onClick={() => {
-                    setCurrentYear(2026);
-                    setCurrentMonth(7);
-                    setSelectedDate('2026-08-11');
+                    setCurrentYear(Number(todayISO.slice(0, 4)));
+                    setCurrentMonth(Number(todayISO.slice(5, 7)) - 1);
+                    setSelectedDate(todayISO);
                   }}
                   className="px-3 py-2 bg-[#1f2a3e] hover:bg-[#283854] text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all border border-[#2e3e59] cursor-pointer"
                 >
@@ -972,84 +942,17 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </div>
             )}
 
-            {/* TAB CONTENT 3: Presença e Dias Trabalhados dos Funcionários */}
-            {dateDetailTab === 'presenca' && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <h4 className="text-xs font-bold text-slate-300">
-                    Presença / Diárias ({selectedDateStaffLogs.length})
-                  </h4>
-                  <button
-                    onClick={() => setIsStaffLogModalOpen(true)}
-                    className="text-amber-400 hover:text-amber-300 text-xs font-bold flex items-center gap-1 cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5" /> Marcar Presença
-                  </button>
-                </div>
-
-                {selectedDateStaffLogs.length > 0 ? (
-                  <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                    {selectedDateStaffLogs.map((log) => (
-                      <div
-                        key={log.id}
-                        className="bg-[#111827] border border-[#23314a] rounded-xl p-3 flex items-center justify-between text-xs"
-                      >
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-white">{log.staffName}</span>
-                            <span
-                              className={`text-[9px] font-extrabold px-2 py-0.2 rounded-md ${
-                                log.status === 'Presente'
-                                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                  : log.status === 'Meio Período'
-                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                  : log.status === 'Folga'
-                                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
-                                  : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                              }`}
-                            >
-                              {log.status}
-                            </span>
-                          </div>
-                          {log.notes && (
-                            <p className="text-[11px] text-slate-400 mt-1">{log.notes}</p>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                          {log.dailyRateCharged ? (
-                            <span className="font-extrabold text-amber-400 text-xs">
-                              R$ {log.dailyRateCharged.toFixed(2)}
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-slate-500">CLT/Fixo</span>
-                          )}
-
-                          <button
-                            onClick={() => onDeleteStaffWorkLog(log.id)}
-                            className="text-slate-500 hover:text-rose-400 cursor-pointer p-1"
-                            title="Remover registro"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="py-10 text-center border-2 border-dashed border-[#23314a] rounded-xl space-y-2">
-                    <UserCheck className="w-8 h-8 text-slate-600 mx-auto" />
-                    <p className="text-xs text-slate-400">Nenhum registro de presença para este dia.</p>
-                    <button
-                      onClick={() => setIsStaffLogModalOpen(true)}
-                      className="bg-amber-600 hover:bg-amber-500 text-slate-950 font-extrabold text-xs px-3.5 py-1.5 rounded-lg transition-all cursor-pointer inline-flex items-center gap-1"
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Marcar Presença da Equipe
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+            {/* Registro por vínculo, compartilhado com Equipe */}
+            {dateDetailTab === 'presenca' && <div className="space-y-3">
+              <p className="text-sm text-slate-300">Fixos: somente ocorrências. Demais: trabalho realizado.</p>
+              {!staffList.length && <p className="text-sm text-slate-400">Cadastre uma pessoa em Equipe.</p>}
+              {staffList.map(staff => <div key={staff.id} className="min-w-0">
+                <h4 className="mb-2 text-sm font-bold text-white">{staff.name}</h4>
+                <StaffAttendance staff={staff} logs={staffWorkLogs} date={selectedDate} busy={attendanceBusy}
+                  canManage={canManageAttendance} canDelete={canDeleteAttendance}
+                  onSave={onSaveStaffWorkLog} onDelete={onDeleteStaffWorkLog} />
+              </div>)}
+            </div>}
           </div>
         </div>
       </div>
@@ -1473,136 +1376,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         </div>
       )}
 
-      {/* MODAL 3: Staff Work Log / Presença */}
-      {isStaffLogModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-[#151e30] border border-[#23314a] rounded-2xl w-full max-w-md overflow-hidden shadow-2xl">
-            <div className="p-4 border-b border-[#23314a] flex items-center justify-between bg-[#111827]">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <UserCheck className="w-4 h-4 text-amber-400" /> Registro de Presença / Diária
-              </h3>
-              <button
-                onClick={() => setIsStaffLogModalOpen(false)}
-                className="text-slate-400 hover:text-white cursor-pointer"
-              >
-                <XCircle className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveStaffLog} className="p-4 space-y-3">
-              <div className="bg-[#111827] border border-[#23314a] p-2.5 rounded-xl text-[11px] text-slate-300 space-y-1">
-                <span className="font-bold text-amber-400 block flex items-center gap-1">
-                  💡 Regra Operacional de Presença & Folgas
-                </span>
-                <p className="text-slate-400 leading-tight">
-                  • O funcionário fica mantido como <strong>Presente</strong> por padrão.<br />
-                  • Se não comparecer no dia, selecione <strong>Falta</strong>.<br />
-                  • Para escalas antecipadas de <strong>Folga</strong>, altere a data e agende previamente no calendário.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">Data *</label>
-                  <input
-                    type="date"
-                    required
-                    value={staffLogForm.date || selectedDate}
-                    onChange={(e) => setStaffLogForm({ ...staffLogForm, date: e.target.value })}
-                    className="w-full bg-[#111827] border border-[#23314a] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 cursor-pointer font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">Colaborador *</label>
-                  <select
-                    value={staffLogForm.staffId}
-                    onChange={(e) => {
-                      const stId = e.target.value;
-                      const stObj = staffList.find((s) => s.id === stId);
-                      setStaffLogForm({
-                        ...staffLogForm,
-                        staffId: stId,
-                        dailyRateCharged: stObj?.dailyRate || 180,
-                      });
-                    }}
-                    className="w-full bg-[#111827] border border-[#23314a] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 cursor-pointer"
-                  >
-                    {staffList.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({s.contractType || 'Fixo'})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">Status no Dia</label>
-                  <select
-                    value={staffLogForm.status}
-                    onChange={(e) => {
-                      const newStatus = e.target.value as StaffWorkLog['status'];
-                      const isAbsence = newStatus === 'Falta' || newStatus === 'Folga';
-                      const selectedStaff = staffList.find((s) => s.id === staffLogForm.staffId);
-                      setStaffLogForm({ 
-                        ...staffLogForm, 
-                        status: newStatus,
-                        dailyRateCharged: isAbsence ? 0 : (selectedStaff?.dailyRate || 180)
-                      });
-                    }}
-                    className="w-full bg-[#111827] border border-[#23314a] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 cursor-pointer"
-                  >
-                    <option value="Presente">Presente (Dia Inteiro)</option>
-                    <option value="Meio Período">Meio Período</option>
-                    <option value="Falta">Falta (Não Compareceu)</option>
-                    <option value="Folga">Folga (Agendada / Programada)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-1">Diária Cobrada (R$)</label>
-                  <input
-                    type="number"
-                    value={staffLogForm.dailyRateCharged}
-                    disabled={staffLogForm.status === 'Falta' || staffLogForm.status === 'Folga'}
-                    onChange={(e) => setStaffLogForm({ ...staffLogForm, dailyRateCharged: Number(e.target.value) })}
-                    className="w-full bg-[#111827] border border-[#23314a] rounded-xl px-3 py-2 text-xs text-amber-400 font-bold focus:outline-none focus:border-amber-500 disabled:opacity-50"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-300 mb-1">Observações do Registro</label>
-                <input
-                  type="text"
-                  placeholder="Ex: Escala de folga de domingo / Falta sem justificativa prévia"
-                  value={staffLogForm.notes}
-                  onChange={(e) => setStaffLogForm({ ...staffLogForm, notes: e.target.value })}
-                  className="w-full bg-[#111827] border border-[#23314a] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#23314a]">
-                <button
-                  type="button"
-                  onClick={() => setIsStaffLogModalOpen(false)}
-                  className="px-3 py-1.5 rounded-xl text-xs text-slate-400 hover:text-white cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-300 shadow-md shadow-amber-900/30 cursor-pointer"
-                >
-                  Salvar Registro de Equipe
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
