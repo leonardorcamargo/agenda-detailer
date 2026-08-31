@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { brazilDate } from '../lib/financialPeriod';
+import { suggestedDailyRate } from '../lib/attendance';
 import { supabase } from '../lib/supabase';
 import { 
   Appointment, 
@@ -39,6 +41,9 @@ import {
 } from 'lucide-react';
 
 interface CalendarViewProps {
+  attendanceBusy: boolean;
+  canManageAttendance: boolean;
+  canDeleteAttendance: boolean;
   companyId: string;
   initialAttendanceDate?: string;
   appointments: Appointment[];
@@ -53,11 +58,12 @@ interface CalendarViewProps {
   onConvertAppointmentToOS: (apt: Appointment) => void;
   onAddDailyNote: (note: DailyCalendarNote) => void;
   onDeleteDailyNote: (id: string) => void;
-  onSaveStaffWorkLog: (log: StaffWorkLog) => void;
-  onDeleteStaffWorkLog: (id: string) => void;
+  onSaveStaffWorkLog: (log: StaffWorkLog) => Promise<boolean>;
+  onDeleteStaffWorkLog: (id: string) => Promise<boolean>;
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
+  attendanceBusy, canManageAttendance, canDeleteAttendance,
   companyId,
   initialAttendanceDate,
   appointments,
@@ -76,10 +82,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onDeleteStaffWorkLog,
 }) => {
   // Calendar navigation state (Year, Month 0-indexed)
-  const todayISO = new Date().toISOString().split('T')[0]; // e.g. "2026-08-11"
-  const [currentYear, setCurrentYear] = useState<number>(initialAttendanceDate ? Number(initialAttendanceDate.slice(0, 4)) : 2026);
-  const [currentMonth, setCurrentMonth] = useState<number>(initialAttendanceDate ? Number(initialAttendanceDate.slice(5, 7)) - 1 : 7);
-  const [selectedDate, setSelectedDate] = useState<string>(initialAttendanceDate || (todayISO.startsWith('2026-08') ? todayISO : '2026-08-11'));
+  const todayISO = brazilDate(new Date())!;
+  const initialDay = initialAttendanceDate || todayISO;
+  const [currentYear, setCurrentYear] = useState<number>(Number(initialDay.slice(0, 4)));
+  const [currentMonth, setCurrentMonth] = useState<number>(Number(initialDay.slice(5, 7)) - 1);
+  const [selectedDate, setSelectedDate] = useState<string>(initialDay);
 
   // Selected Date Panel sub-tab
   const [dateDetailTab, setDateDetailTab] = useState<'agendamentos' | 'observacoes' | 'presenca'>(initialAttendanceDate ? 'presenca' : 'agendamentos');
@@ -90,6 +97,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   const [isNoteModalOpen, setIsNoteModalOpen] = useState(false);
   const [isStaffLogModalOpen, setIsStaffLogModalOpen] = useState(false);
+  const [attendanceError, setAttendanceError] = useState('');
 
   // Filter for appointment search
   const [searchTerm, setSearchTerm] = useState('');
@@ -215,7 +223,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     date: selectedDate,
     staffId: staffList[0]?.id || '',
     status: 'Presente',
-    dailyRateCharged: staffList[0]?.dailyRate || 180,
+    dailyRateCharged: staffList[0] ? suggestedDailyRate(staffList[0], 'Presente') : 0,
     notes: '',
   });
 
@@ -356,11 +364,23 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     setIsNoteModalOpen(false);
   };
 
+  function formForDay(staffId: string, date: string) {
+    const person = staffList.find(staff => staff.id === staffId);
+    const saved = staffWorkLogs.find(log => log.staffId === staffId && log.date === date);
+    return { staffId, date, status: saved?.status || 'Presente' as StaffWorkLog['status'],
+      dailyRateCharged: saved?.dailyRateCharged ?? (person ? suggestedDailyRate(person, 'Presente') : 0), notes: saved?.notes || '' };
+  }
+  function openAttendance() {
+    setAttendanceError('');
+    setStaffLogForm(formForDay(staffList[0]?.id || '', selectedDate));
+    setIsStaffLogModalOpen(true);
+  }
+
   // Staff Work Log Save Handler
-  const handleSaveStaffLog = (e: React.FormEvent) => {
+  const handleSaveStaffLog = async (e: React.FormEvent) => {
     e.preventDefault();
     const targetStaff = staffList.find((s) => s.id === staffLogForm.staffId);
-    if (!targetStaff) return;
+    if (!targetStaff || attendanceBusy || !canManageAttendance) return;
 
     const targetDate = staffLogForm.date || selectedDate;
 
@@ -370,12 +390,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       staffId: targetStaff.id,
       staffName: targetStaff.name,
       status: staffLogForm.status,
-      dailyRateCharged: (staffLogForm.status === 'Falta' || staffLogForm.status === 'Folga') ? 0 : (Number(staffLogForm.dailyRateCharged) || targetStaff.dailyRate || 0),
+      dailyRateCharged: (staffLogForm.status === 'Falta' || staffLogForm.status === 'Folga') ? 0 : Number(staffLogForm.dailyRateCharged),
       notes: staffLogForm.notes,
     };
 
-    onSaveStaffWorkLog(newLog);
-    setIsStaffLogModalOpen(false);
+    setAttendanceError('');
+    const saved = await onSaveStaffWorkLog(newLog);
+    if (saved) setIsStaffLogModalOpen(false);
+    else setAttendanceError('Não foi possível salvar. Confira a conexão e sua permissão; os campos foram mantidos.');
   };
 
   // WhatsApp Message Launcher
@@ -533,9 +555,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
                 <button
                   onClick={() => {
-                    setCurrentYear(2026);
-                    setCurrentMonth(7);
-                    setSelectedDate('2026-08-11');
+                    setCurrentYear(Number(todayISO.slice(0, 4)));
+                    setCurrentMonth(Number(todayISO.slice(5, 7)) - 1);
+                    setSelectedDate(todayISO);
                   }}
                   className="px-3 py-2 bg-[#1f2a3e] hover:bg-[#283854] text-slate-300 hover:text-white rounded-xl text-xs font-bold transition-all border border-[#2e3e59] cursor-pointer"
                 >
@@ -980,7 +1002,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     Presença / Diárias ({selectedDateStaffLogs.length})
                   </h4>
                   <button
-                    onClick={() => setIsStaffLogModalOpen(true)}
+                    disabled={attendanceBusy || !canManageAttendance || !staffList.length}
+                    onClick={openAttendance}
                     className="text-amber-400 hover:text-amber-300 text-xs font-bold flex items-center gap-1 cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" /> Marcar Presença
@@ -1026,7 +1049,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           )}
 
                           <button
-                            onClick={() => onDeleteStaffWorkLog(log.id)}
+                            disabled={attendanceBusy || !canDeleteAttendance}
+                            onClick={() => { if (confirm(`Apagar o registro de ${log.staffName} em ${log.date.split('-').reverse().join('/')}?`)) void onDeleteStaffWorkLog(log.id); }}
                             className="text-slate-500 hover:text-rose-400 cursor-pointer p-1"
                             title="Remover registro"
                           >
@@ -1041,7 +1065,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     <UserCheck className="w-8 h-8 text-slate-600 mx-auto" />
                     <p className="text-xs text-slate-400">Nenhum registro de presença para este dia.</p>
                     <button
-                      onClick={() => setIsStaffLogModalOpen(true)}
+                      disabled={attendanceBusy || !canManageAttendance || !staffList.length}
+                    onClick={openAttendance}
                       className="bg-amber-600 hover:bg-amber-500 text-slate-950 font-extrabold text-xs px-3.5 py-1.5 rounded-lg transition-all cursor-pointer inline-flex items-center gap-1"
                     >
                       <Plus className="w-3.5 h-3.5" /> Marcar Presença da Equipe
@@ -1482,20 +1507,22 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <UserCheck className="w-4 h-4 text-amber-400" /> Registro de Presença / Diária
               </h3>
               <button
-                onClick={() => setIsStaffLogModalOpen(false)}
+                disabled={attendanceBusy} onClick={() => setIsStaffLogModalOpen(false)}
                 className="text-slate-400 hover:text-white cursor-pointer"
               >
                 <XCircle className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveStaffLog} className="p-4 space-y-3">
+            <form onSubmit={handleSaveStaffLog} className="p-4">
+              {attendanceError && <p role="alert" className="mb-3 text-sm text-rose-300">{attendanceError}</p>}
+              <fieldset disabled={attendanceBusy || !canManageAttendance} className="space-y-3">
               <div className="bg-[#111827] border border-[#23314a] p-2.5 rounded-xl text-[11px] text-slate-300 space-y-1">
                 <span className="font-bold text-amber-400 block flex items-center gap-1">
                   💡 Regra Operacional de Presença & Folgas
                 </span>
                 <p className="text-slate-400 leading-tight">
-                  • O funcionário fica mantido como <strong>Presente</strong> por padrão.<br />
+                  • Sem lançamento, o dia fica <strong>Sem registro</strong>. Nada é salvo automaticamente.<br />
                   • Se não comparecer no dia, selecione <strong>Falta</strong>.<br />
                   • Para escalas antecipadas de <strong>Folga</strong>, altere a data e agende previamente no calendário.
                 </p>
@@ -1508,7 +1535,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     type="date"
                     required
                     value={staffLogForm.date || selectedDate}
-                    onChange={(e) => setStaffLogForm({ ...staffLogForm, date: e.target.value })}
+                    onChange={(e) => setStaffLogForm(formForDay(staffLogForm.staffId, e.target.value))}
                     className="w-full bg-[#111827] border border-[#23314a] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 cursor-pointer font-mono"
                   />
                 </div>
@@ -1517,15 +1544,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   <label className="block text-xs font-bold text-slate-300 mb-1">Colaborador *</label>
                   <select
                     value={staffLogForm.staffId}
-                    onChange={(e) => {
-                      const stId = e.target.value;
-                      const stObj = staffList.find((s) => s.id === stId);
-                      setStaffLogForm({
-                        ...staffLogForm,
-                        staffId: stId,
-                        dailyRateCharged: stObj?.dailyRate || 180,
-                      });
-                    }}
+                    onChange={(e) => setStaffLogForm(formForDay(e.target.value, staffLogForm.date || selectedDate))}
                     className="w-full bg-[#111827] border border-[#23314a] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 cursor-pointer"
                   >
                     {staffList.map((s) => (
@@ -1544,12 +1563,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     value={staffLogForm.status}
                     onChange={(e) => {
                       const newStatus = e.target.value as StaffWorkLog['status'];
-                      const isAbsence = newStatus === 'Falta' || newStatus === 'Folga';
                       const selectedStaff = staffList.find((s) => s.id === staffLogForm.staffId);
                       setStaffLogForm({ 
                         ...staffLogForm, 
                         status: newStatus,
-                        dailyRateCharged: isAbsence ? 0 : (selectedStaff?.dailyRate || 180)
+                        dailyRateCharged: selectedStaff ? suggestedDailyRate(selectedStaff, newStatus) : 0
                       });
                     }}
                     className="w-full bg-[#111827] border border-[#23314a] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 cursor-pointer"
@@ -1565,6 +1583,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   <label className="block text-xs font-bold text-slate-300 mb-1">Diária Cobrada (R$)</label>
                   <input
                     type="number"
+                    min="0"
+                    step="0.01"
+                    required
                     value={staffLogForm.dailyRateCharged}
                     disabled={staffLogForm.status === 'Falta' || staffLogForm.status === 'Folga'}
                     onChange={(e) => setStaffLogForm({ ...staffLogForm, dailyRateCharged: Number(e.target.value) })}
@@ -1587,7 +1608,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#23314a]">
                 <button
                   type="button"
-                  onClick={() => setIsStaffLogModalOpen(false)}
+                  disabled={attendanceBusy} onClick={() => setIsStaffLogModalOpen(false)}
                   className="px-3 py-1.5 rounded-xl text-xs text-slate-400 hover:text-white cursor-pointer"
                 >
                   Cancelar
@@ -1599,6 +1620,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   Salvar Registro de Equipe
                 </button>
               </div>
+              </fieldset>
             </form>
           </div>
         </div>

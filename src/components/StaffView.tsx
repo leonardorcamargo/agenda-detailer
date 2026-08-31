@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StaffMember, ServiceOrder, StaffWorkLog } from '../types';
 import { brazilDate } from '../lib/financialPeriod';
+import { StaffAttendance } from './StaffAttendance';
 import { attendanceOnDay } from '../lib/staffDay';
 import { 
   Users, 
@@ -33,18 +34,24 @@ import {
 } from 'lucide-react';
 
 interface StaffViewProps {
+  busy: boolean;
+  canManage: boolean;
+  canDelete: boolean;
+  onSaveAttendance: (log: StaffWorkLog) => Promise<boolean>;
+  onDeleteAttendance: (id: string) => Promise<boolean>;
   staffList: StaffMember[];
   orders: ServiceOrder[];
   staffWorkLogs?: StaffWorkLog[];
-  onAddStaff: (staff: StaffMember) => void;
-  onUpdateStaff: (staff: StaffMember) => void;
-  onRemoveStaff: (id: string) => void;
+  onAddStaff: (staff: StaffMember) => Promise<boolean>;
+  onUpdateStaff: (staff: StaffMember) => Promise<boolean>;
+  onRemoveStaff: (id: string) => Promise<boolean>;
   onReassignOrder: (orderId: string, newDetailerName: string) => void;
   onOpenOSModal: (order: ServiceOrder) => void;
   onOpenAttendance: (date: string) => void;
 }
 
 export const StaffView: React.FC<StaffViewProps> = ({
+  busy, canManage, canDelete, onSaveAttendance, onDeleteAttendance,
   staffList,
   orders,
   staffWorkLogs = [],
@@ -64,6 +71,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
   
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [editingStaff, setEditingStaff] = useState<StaffMember | null>(null);
   
   // Reassign Modal
@@ -109,8 +117,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
     } else if (staff.commissionType === 'Valor Fixo por OS' || staff.commissionType === 'Valor de Empreita por OS') {
       totalCommission = memberOrders.length * (staff.fixedCommissionValue || 0);
     } else if (staff.commissionType === 'Diária Fixa') {
-      const daysWorked = memberOrders.length > 0 ? memberOrders.length : (staff.status === 'Ativo' ? 1 : 0);
-      totalCommission = (staff.dailyRate || 0) * daysWorked;
+      totalCommission = staffWorkLogs.filter(log => log.staffId === staff.id).reduce((sum, log) => sum + (log.dailyRateCharged || 0), 0);
     }
 
     return {
@@ -137,6 +144,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
 
   // Handlers
   const handleOpenAddModal = () => {
+    if (busy || !canManage) return;
     setEditingStaff(null);
     setFormData({
       name: '',
@@ -152,18 +160,23 @@ export const StaffView: React.FC<StaffViewProps> = ({
       pixKey: '',
       notes: '',
     });
+    setSaveError('');
     setIsModalOpen(true);
   };
 
   const handleOpenEditModal = (staff: StaffMember) => {
+    if (busy || !canManage) return;
     setEditingStaff(staff);
     setFormData({ ...staff });
+    setSaveError('');
     setIsModalOpen(true);
   };
 
-  const handleSaveStaff = (e: React.FormEvent) => {
+  const handleSaveStaff = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name?.trim()) return;
+    if (busy || !canManage || !formData.name?.trim()) return;
+    let saved = false;
+    setSaveError('');
 
     const contractType = formData.contractType || 'Fixo / CLT';
     let defaultRole = formData.role || 'Polidor Especialista';
@@ -171,7 +184,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
     if (contractType === 'Empreiteiro / Freelancer (por Serviço)' && !formData.role) defaultRole = 'Empreiteiro';
 
     if (editingStaff) {
-      onUpdateStaff({
+      saved = await onUpdateStaff({
         ...editingStaff,
         name: formData.name.trim(),
         role: defaultRole,
@@ -202,10 +215,11 @@ export const StaffView: React.FC<StaffViewProps> = ({
         pixKey: formData.pixKey || '',
         notes: formData.notes || '',
       };
-      onAddStaff(newStaff);
+      saved = await onAddStaff(newStaff);
     }
 
-    setIsModalOpen(false);
+    if (saved) setIsModalOpen(false);
+    else setSaveError('Não foi possível salvar. Confira a conexão e sua permissão. Seus campos foram mantidos.');
   };
 
   const handleToggleSpecialty = (spec: string) => {
@@ -253,23 +267,24 @@ export const StaffView: React.FC<StaffViewProps> = ({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div><h2 className="text-xl font-bold text-white">Dia a dia da equipe</h2>
           <p className="mt-1 text-sm text-slate-400">Confira presenças e veja quem está cuidando de cada serviço.</p></div>
-        <button type="button" onClick={handleOpenAddModal} className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white">
+        <button type="button" disabled={busy || !canManage} onClick={handleOpenAddModal} className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white">
           <UserPlus className="h-4 w-4" /> Adicionar pessoa
         </button>
       </div>
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[#23314a] bg-[#151e30] p-3">
         <label className="flex min-w-0 flex-wrap items-center gap-2 text-sm text-slate-300">Presenças de
-          <input aria-label="Data das presenças" type="date" value={workDay} onChange={event => { if (event.target.value) setWorkDay(event.target.value); }}
+          <input aria-label="Data das presenças" disabled={busy} type="date" value={workDay} onChange={event => { if (event.target.value) setWorkDay(event.target.value); }}
             className="min-w-0 rounded-lg border border-slate-600 bg-slate-900 p-2 text-white" />
         </label>
         <span className="text-sm text-emerald-300">{staffList.filter(staff => ['Presente', 'Meio Período'].includes(attendanceOnDay(staff, staffWorkLogs, workDay))).length} com presença registrada</span>
-        <button type="button" onClick={() => onOpenAttendance(workDay)} className="rounded-lg bg-blue-600/15 px-3 py-2 text-sm font-semibold text-blue-300">Registrar na Agenda</button>
+        <p className="text-sm text-slate-300">Marque a situação no cartão de cada pessoa e salve.</p>
       </div>
       {unassignedOrders.length > 0 && <button type="button" onClick={() => setActiveTab('distribuicao')}
         className="w-full rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-left text-sm text-amber-200">
         {unassignedOrders.length} serviço(s) no pátio sem responsável. Toque para distribuir.
       </button>}
 
+      {staffList.some(staff => staff.notes?.includes('[TESTE AGENDA DETAILER]')) && <p className="text-xs text-amber-300">Equipe de teste: substituir os cadastros antes do lançamento.</p>}
       {/* Main Tabs Navigation */}
       <div className="border-b border-[#23314a] pb-3">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2" aria-label="Áreas da equipe">
@@ -526,6 +541,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
                     {/* Actions */}
                     <div className="flex items-center gap-1 shrink-0">
                       <button
+                        disabled={busy || !canManage}
                         onClick={() => handleOpenEditModal(staff)}
                         className="p-2 rounded-xl text-slate-400 hover:text-blue-400 hover:bg-[#1f2a3e] transition-colors cursor-pointer"
                         title="Editar Colaborador"
@@ -534,12 +550,13 @@ export const StaffView: React.FC<StaffViewProps> = ({
                       </button>
                       <button
                         onClick={() => {
-                          if (confirm(`Deseja remover ${staff.name} da equipe?`)) {
+                          if (canManage && !busy && confirm(`Inativar ${staff.name}, mantendo seu histórico?`)) {
                             onRemoveStaff(staff.id);
                           }
                         }}
                         className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                        title="Remover Colaborador"
+                        disabled={busy || !canManage}
+                        title="Inativar Colaborador"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -547,9 +564,10 @@ export const StaffView: React.FC<StaffViewProps> = ({
                   </div>
 
                   <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#111827] p-3 text-sm">
-                    <span className="text-slate-300">Presença: <strong className="text-white">{attendanceOnDay(staff, staffWorkLogs, workDay)}</strong></span>
+                    <span className="text-slate-300">Dia a dia</span>
                     <span className="text-blue-300">{metrics.activeOrdersCount} serviço(s) no pátio</span>
                   </div>
+                  <StaffAttendance staff={staff} logs={staffWorkLogs} date={workDay} busy={busy} canManage={canManage} canDelete={canDelete} onSave={onSaveAttendance} onDelete={onDeleteAttendance} />
                   {metrics.activeOrdersList.length > 0 && <div className="space-y-2">
                     {metrics.activeOrdersList.slice(0, 2).map(order => <button type="button" key={order.id} onClick={() => onOpenOSModal(order)}
                       className="flex w-full flex-wrap items-center justify-between gap-2 rounded-lg border border-[#23314a] p-2 text-left text-xs text-slate-300">
@@ -1068,7 +1086,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
                 </thead>
                 <tbody className="divide-y divide-[#1f293d]">
                   {staffList.map((staff) => {
-                    const logs = staffWorkLogs.filter((l) => l.staffId === staff.id || l.staffName === staff.name);
+                    const logs = staffWorkLogs.filter((l) => l.staffId === staff.id);
                     const presencesCount = logs.filter((l) => l.status === 'Presente' || l.status === 'Meio Período').length;
                     const faltasCount = logs.filter((l) => l.status === 'Falta').length;
                     const folgasCount = logs.filter((l) => l.status === 'Folga').length;
@@ -1195,7 +1213,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
                 </h3>
               </div>
               <button
-                onClick={() => setIsModalOpen(false)}
+                disabled={busy} onClick={() => setIsModalOpen(false)}
                 className="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -1203,7 +1221,9 @@ export const StaffView: React.FC<StaffViewProps> = ({
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleSaveStaff} className="p-4 sm:p-5 space-y-4">
+            <form onSubmit={handleSaveStaff} className="p-4 sm:p-5">
+              {saveError && <p role="alert" className="mb-3 text-sm text-rose-300">{saveError}</p>}
+              <fieldset disabled={busy || !canManage} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-300 mb-1">
                   Nome Completo *
@@ -1492,7 +1512,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#23314a]">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  disabled={busy} onClick={() => setIsModalOpen(false)}
                   className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-[#111827] hover:bg-[#1a2333] transition-colors cursor-pointer"
                 >
                   Cancelar
@@ -1504,6 +1524,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
                   {editingStaff ? 'Salvar Alterações' : 'Cadastrar Colaborador'}
                 </button>
               </div>
+            </fieldset>
             </form>
           </div>
         </div>
