@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { StaffMember, ServiceOrder, StaffWorkLog } from '../types';
+import { brazilDate } from '../lib/financialPeriod';
+import { attendanceOnDay } from '../lib/staffDay';
 import { 
   Users, 
   Plus, 
@@ -39,6 +41,7 @@ interface StaffViewProps {
   onRemoveStaff: (id: string) => void;
   onReassignOrder: (orderId: string, newDetailerName: string) => void;
   onOpenOSModal: (order: ServiceOrder) => void;
+  onOpenAttendance: (date: string) => void;
 }
 
 export const StaffView: React.FC<StaffViewProps> = ({
@@ -50,10 +53,12 @@ export const StaffView: React.FC<StaffViewProps> = ({
   onRemoveStaff,
   onReassignOrder,
   onOpenOSModal,
+  onOpenAttendance,
 }) => {
   // State
   const [activeTab, setActiveTab] = useState<'equipe' | 'distribuicao' | 'comissoes' | 'presencas'>('equipe');
   const [searchTerm, setSearchTerm] = useState('');
+  const [workDay, setWorkDay] = useState(() => brazilDate(new Date())!);
   const [statusFilter, setStatusFilter] = useState<'Todos' | 'Ativo' | 'Inativo' | 'Férias'>('Todos');
   const [contractFilter, setContractFilter] = useState<'Todos' | 'Fixo / CLT' | 'Diarista (Diária Fixa)' | 'Empreiteiro / Freelancer (por Serviço)'>('Todos');
   
@@ -245,6 +250,88 @@ export const StaffView: React.FC<StaffViewProps> = ({
 
   return (
     <div className="p-3 sm:p-6 space-y-6 max-w-7xl mx-auto">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div><h2 className="text-xl font-bold text-white">Dia a dia da equipe</h2>
+          <p className="mt-1 text-sm text-slate-400">Confira presenças e veja quem está cuidando de cada serviço.</p></div>
+        <button type="button" onClick={handleOpenAddModal} className="flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white">
+          <UserPlus className="h-4 w-4" /> Adicionar pessoa
+        </button>
+      </div>
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-[#23314a] bg-[#151e30] p-3">
+        <label className="flex min-w-0 flex-wrap items-center gap-2 text-sm text-slate-300">Presenças de
+          <input aria-label="Data das presenças" type="date" value={workDay} onChange={event => { if (event.target.value) setWorkDay(event.target.value); }}
+            className="min-w-0 rounded-lg border border-slate-600 bg-slate-900 p-2 text-white" />
+        </label>
+        <span className="text-sm text-emerald-300">{staffList.filter(staff => ['Presente', 'Meio Período'].includes(attendanceOnDay(staff, staffWorkLogs, workDay))).length} com presença registrada</span>
+        <button type="button" onClick={() => onOpenAttendance(workDay)} className="rounded-lg bg-blue-600/15 px-3 py-2 text-sm font-semibold text-blue-300">Registrar na Agenda</button>
+      </div>
+      {unassignedOrders.length > 0 && <button type="button" onClick={() => setActiveTab('distribuicao')}
+        className="w-full rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-left text-sm text-amber-200">
+        {unassignedOrders.length} serviço(s) no pátio sem responsável. Toque para distribuir.
+      </button>}
+
+      {/* Main Tabs Navigation */}
+      <div className="border-b border-[#23314a] pb-3">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2" aria-label="Áreas da equipe">
+          <button
+            onClick={() => setActiveTab('equipe')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'equipe'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-900/40'
+                : 'bg-[#151e30] text-slate-400 hover:text-white border border-[#23314a]'
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>Dia a dia</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('distribuicao')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer relative ${
+              activeTab === 'distribuicao'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-900/40'
+                : 'bg-[#151e30] text-slate-400 hover:text-white border border-[#23314a]'
+            }`}
+          >
+            <Car className="w-4 h-4" />
+            <span>Distribuir</span>
+            {unassignedOrders.length > 0 && (
+              <span className="bg-amber-500 text-slate-950 font-black text-[10px] px-1.5 py-0.2 rounded-full">
+                {unassignedOrders.length}
+              </span>
+            )}
+          </button>
+
+          <button
+            onClick={() => setActiveTab('comissoes')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'comissoes'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-900/40'
+                : 'bg-[#151e30] text-slate-400 hover:text-white border border-[#23314a]'
+            }`}
+          >
+            <DollarSign className="w-4 h-4" />
+            <span>Pagamentos</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('presencas')}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              activeTab === 'presencas'
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-900/40'
+                : 'bg-[#151e30] text-slate-400 hover:text-white border border-[#23314a]'
+            }`}
+          >
+            <UserCheck className="w-4 h-4 text-emerald-400" />
+            <span>Presenças</span>
+          </button>
+        </div>
+
+      </div>
+
+      <details className="rounded-xl border border-[#23314a] p-3">
+        <summary className="cursor-pointer text-sm text-slate-400">Ver indicadores e valores acumulados</summary>
+        <p className="my-3 text-xs text-slate-400">Todos os registros carregados, sem filtro de data. Valores estimados pelas regras atuais; não comprovam pagamento.</p>
       {/* KPI Overview Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         <div className="bg-[#151e30] border border-[#23314a] p-4 rounded-2xl flex items-center justify-between">
@@ -308,78 +395,13 @@ export const StaffView: React.FC<StaffViewProps> = ({
         </div>
       </div>
 
-      {/* Main Tabs Navigation */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-b border-[#23314a] pb-3">
-        <div className="flex items-center gap-2 overflow-x-auto">
-          <button
-            onClick={() => setActiveTab('equipe')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'equipe'
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-900/40'
-                : 'bg-[#151e30] text-slate-400 hover:text-white border border-[#23314a]'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            <span>Equipe & Produtividade</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('distribuicao')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer relative ${
-              activeTab === 'distribuicao'
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-900/40'
-                : 'bg-[#151e30] text-slate-400 hover:text-white border border-[#23314a]'
-            }`}
-          >
-            <Car className="w-4 h-4" />
-            <span>Distribuição do Pátio</span>
-            {unassignedOrders.length > 0 && (
-              <span className="bg-amber-500 text-slate-950 font-black text-[10px] px-1.5 py-0.2 rounded-full">
-                {unassignedOrders.length}
-              </span>
-            )}
-          </button>
-
-          <button
-            onClick={() => setActiveTab('comissoes')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'comissoes'
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-900/40'
-                : 'bg-[#151e30] text-slate-400 hover:text-white border border-[#23314a]'
-            }`}
-          >
-            <DollarSign className="w-4 h-4" />
-            <span>Extrato de Pagamentos & Comissões</span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('presencas')}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
-              activeTab === 'presencas'
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-900/40'
-                : 'bg-[#151e30] text-slate-400 hover:text-white border border-[#23314a]'
-            }`}
-          >
-            <UserCheck className="w-4 h-4 text-emerald-400" />
-            <span>Resumo de Presenças & Diárias</span>
-          </button>
-        </div>
-
-        {/* Primary Add Staff Button */}
-        <button
-          onClick={handleOpenAddModal}
-          className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-md shadow-blue-900/40 flex items-center justify-center gap-2 cursor-pointer border border-blue-400/30"
-        >
-          <UserPlus className="w-4 h-4" />
-          <span>+ Cadastrar Colaborador / Freelancer</span>
-        </button>
-      </div>
+      </details>
 
       {/* TAB 1: Equipe & Produtividade */}
       {activeTab === 'equipe' && (
         <div className="space-y-4">
           {/* Search & Filter Bar */}
-          <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+          <div className="space-y-3">
             <div className="relative flex-1">
               <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
               <input
@@ -391,8 +413,11 @@ export const StaffView: React.FC<StaffViewProps> = ({
               />
             </div>
 
+            <details className="rounded-xl border border-[#23314a] p-3">
+              <summary className="cursor-pointer text-sm text-slate-400">Filtrar equipe · {statusFilter} · {contractFilter}</summary>
+              <div className="mt-3 flex flex-wrap gap-4">
             {/* Contract / Regime Filters */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0">
+            <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-[11px] text-slate-400 font-medium shrink-0 mr-1">Vínculo:</span>
               {[
                 { label: 'Todos', val: 'Todos' },
@@ -415,7 +440,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
             </div>
 
             {/* Status Filter */}
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex flex-wrap items-center gap-1.5">
               {(['Todos', 'Ativo', 'Inativo', 'Férias'] as const).map((st) => (
                 <button
                   key={st}
@@ -430,8 +455,11 @@ export const StaffView: React.FC<StaffViewProps> = ({
                 </button>
               ))}
             </div>
+              </div>
+            </details>
           </div>
 
+          {filteredStaff.length === 0 && <p className="py-6 text-sm text-slate-400">Nenhuma pessoa encontrada. Ajuste os filtros ou adicione alguém à equipe.</p>}
           {/* Staff Members List / Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
             {filteredStaff.map((staff) => {
@@ -441,7 +469,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
               return (
                 <div
                   key={staff.id}
-                  className="bg-[#151e30] border border-[#23314a] hover:border-blue-500/40 rounded-2xl p-4 space-y-4 transition-all shadow-sm"
+                  className="min-w-0 bg-[#151e30] border border-[#23314a] hover:border-blue-500/40 rounded-2xl p-4 space-y-4 transition-all shadow-sm"
                 >
                   {/* Top Info Header */}
                   <div className="flex items-start justify-between gap-3">
@@ -461,7 +489,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
                           
                           {/* Contract Type Badge */}
                           <span
-                            className={`text-[9px] font-extrabold px-2 py-0.5 rounded-md shrink-0 border flex items-center gap-1 ${
+                            className={`max-w-full break-words text-[9px] font-extrabold px-2 py-0.5 rounded-md border flex items-center gap-1 ${
                               staff.contractType === 'Diarista (Diária Fixa)'
                                 ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                                 : staff.contractType === 'Empreiteiro / Freelancer (por Serviço)'
@@ -518,6 +546,21 @@ export const StaffView: React.FC<StaffViewProps> = ({
                     </div>
                   </div>
 
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#111827] p-3 text-sm">
+                    <span className="text-slate-300">Presença: <strong className="text-white">{attendanceOnDay(staff, staffWorkLogs, workDay)}</strong></span>
+                    <span className="text-blue-300">{metrics.activeOrdersCount} serviço(s) no pátio</span>
+                  </div>
+                  {metrics.activeOrdersList.length > 0 && <div className="space-y-2">
+                    {metrics.activeOrdersList.slice(0, 2).map(order => <button type="button" key={order.id} onClick={() => onOpenOSModal(order)}
+                      className="flex w-full flex-wrap items-center justify-between gap-2 rounded-lg border border-[#23314a] p-2 text-left text-xs text-slate-300">
+                      <span className="min-w-0 break-words">OS #{order.osNumber} · {order.plate} · {order.model}</span>
+                      <span className="text-blue-300">Abrir serviço</span>
+                    </button>)}
+                    {metrics.activeOrdersCount > 2 && <p className="text-xs text-slate-400">Mais {metrics.activeOrdersCount - 2} serviço(s) em Ver detalhes.</p>}
+                  </div>}
+                  <details className="border-t border-[#23314a] pt-3">
+                    <summary className="cursor-pointer text-sm font-semibold text-blue-300">Ver detalhes: cadastro, valores e serviços</summary>
+                    <div className="mt-4 space-y-4">
                   {/* Specialties Chips */}
                   {staff.specialties && staff.specialties.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 pt-1">
@@ -533,7 +576,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
                   )}
 
                   {/* Payment / Commission Rule Banner */}
-                  <div className="bg-[#1b2538] border border-[#283854] rounded-xl px-3 py-2 flex items-center justify-between text-xs">
+                  <div className="bg-[#1b2538] border border-[#283854] rounded-xl px-3 py-2 flex flex-wrap gap-2 items-center justify-between text-xs">
                     <span className="text-slate-400 flex items-center gap-1.5 font-medium">
                       <Award className="w-3.5 h-3.5 text-amber-400" /> Remuneração / Regra:
                     </span>
@@ -565,7 +608,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
                     </div>
 
                     <div className="bg-[#111827] border border-[#1f293d] p-2.5 rounded-xl">
-                      <span className="text-[10px] text-slate-400 block font-medium">A Pagar</span>
+                      <span className="text-[10px] text-slate-400 block font-medium">Valor estimado</span>
                       <span className="text-xs font-black text-amber-400 block mt-1 truncate">
                         R$ {metrics.totalCommission.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </span>
@@ -621,7 +664,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
 
                   {/* PIX Key copy footer if present */}
                   {staff.pixKey && (
-                    <div className="pt-2 border-t border-[#1f293d] flex items-center justify-between text-[11px]">
+                    <div className="pt-2 border-t border-[#1f293d] flex flex-wrap items-center justify-between gap-2 text-[11px] [overflow-wrap:anywhere]">
                       <span className="text-slate-400">PIX: <strong className="text-slate-200 font-mono">{staff.pixKey}</strong></span>
                       <button
                         onClick={() => handleCopyPix(staff.pixKey!, staff.id)}
@@ -639,6 +682,8 @@ export const StaffView: React.FC<StaffViewProps> = ({
                       </button>
                     </div>
                   )}
+                    </div>
+                  </details>
                 </div>
               );
             })}
@@ -981,7 +1026,7 @@ export const StaffView: React.FC<StaffViewProps> = ({
 
             <div className="bg-[#151e30] border border-[#23314a] p-4 rounded-2xl flex items-center justify-between">
               <div>
-                <p className="text-xs text-slate-400 font-medium">Total em Diárias Pagas</p>
+                <p className="text-xs text-slate-400 font-medium">Diárias registradas</p>
                 <h3 className="text-2xl font-black text-amber-400 mt-1">
                   R$ {staffWorkLogs.reduce((sum, l) => sum + (l.dailyRateCharged || 0), 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </h3>
@@ -1000,10 +1045,10 @@ export const StaffView: React.FC<StaffViewProps> = ({
             <div className="flex items-center justify-between border-b border-[#23314a] pb-3">
               <div>
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Users className="w-5 h-5 text-amber-400" /> Resumo do Mês: Dias Trabalhados, Faltas & Folgas
+                  <Users className="w-5 h-5 text-amber-400" /> Histórico de presenças por pessoa
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Consolidado da frequência da equipe e cálculo automatizado de diárias por colaborador.
+                  Todos os registros carregados, sem filtro de data. Diárias registradas não são confirmação de pagamento.
                 </p>
               </div>
             </div>

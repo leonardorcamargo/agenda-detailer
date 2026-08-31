@@ -1,0 +1,16 @@
+import assert from 'node:assert/strict';
+import { attendanceOnDay } from '../src/lib/staffDay';
+import type { StaffWorkLog } from '../src/types';
+const staff = { id: 'staff-1', name: 'Ana' };
+const day = '2026-08-31';
+const log: StaffWorkLog = { id: 'log-1', staffId: staff.id, staffName: staff.name, date: day, status: 'Presente' };
+assert.equal(attendanceOnDay(staff, [], day), 'Sem registro');
+assert.equal(attendanceOnDay(staff, [log], day), 'Presente');
+assert.equal(attendanceOnDay(staff, [log], '2026-09-01'), 'Sem registro');
+assert.equal(attendanceOnDay(staff, [{ ...log, staffId: 'other' }], day), 'Sem registro');
+assert.equal(attendanceOnDay(staff, [{ ...log, staffName: 'Nome antigo' }], day), 'Presente');
+assert.equal(attendanceOnDay(staff, [{ ...log, staffId: '' }], day), 'Presente');
+assert.equal(attendanceOnDay(staff, [log, { ...log, id: 'log-2' }], day), 'Presente');
+assert.equal(attendanceOnDay(staff, [log, { ...log, id: 'log-2', status: 'Falta' }], day), 'Conferir registros');
+assert.equal(attendanceOnDay(staff, [{ ...log, status: 'Meio Período' }], day), 'Meio Período');
+console.log('staffDay: OK');
