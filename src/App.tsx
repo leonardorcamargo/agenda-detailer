@@ -1022,6 +1022,8 @@ export default function App() {
             {activeTab === 'mao-de-obra' && team.ready && (
               <StaffView
                 key={companyId}
+                companyId={companyId}
+                onReviewClock={() => setActiveTab('ponto')}
                 busy={team.busy}
                 canManage={team.canManage}
                 canDelete={team.canDelete}
