@@ -40,6 +40,7 @@ import {
 
 interface CalendarViewProps {
   companyId: string;
+  initialAttendanceDate?: string;
   appointments: Appointment[];
   dailyNotes: DailyCalendarNote[];
   staffWorkLogs: StaffWorkLog[];
@@ -58,6 +59,7 @@ interface CalendarViewProps {
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
   companyId,
+  initialAttendanceDate,
   appointments,
   dailyNotes,
   staffWorkLogs,
@@ -75,12 +77,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 }) => {
   // Calendar navigation state (Year, Month 0-indexed)
   const todayISO = new Date().toISOString().split('T')[0]; // e.g. "2026-08-11"
-  const [currentYear, setCurrentYear] = useState<number>(2026);
-  const [currentMonth, setCurrentMonth] = useState<number>(7); // 7 = August (0-indexed)
-  const [selectedDate, setSelectedDate] = useState<string>(todayISO.startsWith('2026-08') ? todayISO : '2026-08-11');
+  const [currentYear, setCurrentYear] = useState<number>(initialAttendanceDate ? Number(initialAttendanceDate.slice(0, 4)) : 2026);
+  const [currentMonth, setCurrentMonth] = useState<number>(initialAttendanceDate ? Number(initialAttendanceDate.slice(5, 7)) - 1 : 7);
+  const [selectedDate, setSelectedDate] = useState<string>(initialAttendanceDate || (todayISO.startsWith('2026-08') ? todayISO : '2026-08-11'));
 
   // Selected Date Panel sub-tab
-  const [dateDetailTab, setDateDetailTab] = useState<'agendamentos' | 'observacoes' | 'presenca'>('agendamentos');
+  const [dateDetailTab, setDateDetailTab] = useState<'agendamentos' | 'observacoes' | 'presenca'>(initialAttendanceDate ? 'presenca' : 'agendamentos');
 
   // Modals state
   const [isAptModalOpen, setIsAptModalOpen] = useState(false);
@@ -1604,4 +1606,3 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     </div>
   );
 };
-

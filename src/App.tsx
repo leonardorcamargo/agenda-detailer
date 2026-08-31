@@ -64,6 +64,7 @@ export default function App() {
   return () => subscription.unsubscribe();
 }, []);
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
+  const [attendanceDate, setAttendanceDate] = useState<string | undefined>();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
   // Core App Data State
@@ -866,6 +867,7 @@ setCompanyId(membership.company_id);
           settings={shopSettings}
           activeTab={activeTab}
           setActiveTab={(tab) => {
+            setAttendanceDate(undefined);
             setActiveTab(tab);
             setIsMobileMenuOpen(false);
           }}
@@ -973,6 +975,7 @@ setCompanyId(membership.company_id);
             {activeTab === 'agendamento' && (
               <CalendarView
                 companyId={companyId}
+                initialAttendanceDate={attendanceDate}
                 appointments={appointments}
                 dailyNotes={dailyNotes}
                 staffWorkLogs={staffWorkLogs}
@@ -1037,6 +1040,10 @@ setCompanyId(membership.company_id);
                 onUpdateStaff={(staff) => setStaffList(staffList.map((s) => (s.id === staff.id ? staff : s)))}
                 onRemoveStaff={(id) => setStaffList(staffList.filter((s) => s.id !== id))}
                 onReassignOrder={handleUpdateDetailer}
+                onOpenAttendance={(date) => {
+                  setAttendanceDate(date);
+                  setActiveTab('agendamento');
+                }}
                 onOpenOSModal={(order) => setSelectedOrderForModal(order)}
               />
             )}
