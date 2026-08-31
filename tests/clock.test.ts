@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { clockActions, clockTime, proposedClockTime } from '../src/lib/clock';
+assert.deepEqual(clockActions(), ['entry']);
+assert.deepEqual(clockActions('exit'), ['entry']);
+assert.deepEqual(clockActions('entry'), ['break_start','exit']);
+assert.deepEqual(clockActions('break_start'), ['break_end','exit']);
+assert.deepEqual(clockActions('break_end'), ['break_start','exit']);
+assert.equal(proposedClockTime('2026-08-31T09:15'), '2026-08-31T09:15:00-03:00');
+assert.equal(proposedClockTime('2028-02-29T23:59'), '2028-02-29T23:59:00-03:00');
+for (const value of ['2026-02-29T09:00','2026-02-30T09:00','2026-08-31T24:00','2026-08-31T09:60','bad','2026-08-31T09:00Z']) assert.throws(() => proposedClockTime(value));
+assert.match(clockTime('2026-08-31T12:15:30Z'), /09:15:30/);
+assert.match(clockTime('2026-09-01T01:15:30Z'), /31\/08\/2026/);
+console.log('clock: PASS — sequence, civil date, Brazil timezone');
