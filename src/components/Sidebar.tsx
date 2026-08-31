@@ -15,7 +15,7 @@ import {
   X
 } from 'lucide-react';
 
-export type ActiveTab = 'dashboard' | 'agendamento' | 'nova-os' | 'patio' | 'clientes' | 'financeiro' | 'mao-de-obra' | 'catalogo' | 'combos' | 'lembretes' | 'configuracoes';
+export type ActiveTab = 'ponto' | 'dashboard' | 'agendamento' | 'nova-os' | 'patio' | 'clientes' | 'financeiro' | 'mao-de-obra' | 'catalogo' | 'combos' | 'lembretes' | 'configuracoes';
 
 interface SidebarProps {
   settings: ShopSettings;
@@ -43,6 +43,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'patio', label: 'Pátio (Kanban)', shortLabel: 'Pátio', icon: Car, badge: pendingCount > 0 ? pendingCount : undefined },
     { id: 'clientes', label: 'Clientes', shortLabel: 'Clientes', icon: Users },
     { id: 'financeiro', label: 'Financeiro', shortLabel: 'Finanças', icon: Wallet },
+    { id: 'ponto', label: 'Ponto da equipe', shortLabel: 'Ponto', icon: Calendar },
     { id: 'mao-de-obra', label: 'Equipe', shortLabel: 'Equipe', icon: Users },
     { id: 'catalogo', label: 'Catálogo', shortLabel: 'Catálogo', icon: Layers },
     { id: 'combos', label: 'Combos & Pacotes', shortLabel: 'Combos', icon: Flame },

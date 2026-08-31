@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from './lib/supabase';
 import { useTeam } from './hooks/useTeam';
+import { useClock } from './hooks/useClock';
+import { ClockView, ClockAlerts } from './components/ClockView';
 import confetti from 'canvas-confetti';
 import { 
   ServiceOrder, 
@@ -19,7 +21,6 @@ import {
   INITIAL_PRODUCTS_CATALOG,
   INITIAL_COMBOS_CATALOG,
   INITIAL_SHOP_SETTINGS, 
-  DEMO_SAAS_TENANTS,
   INITIAL_APPOINTMENTS,
   INITIAL_DAILY_NOTES,
 } from './data/mockData';
@@ -47,19 +48,28 @@ export default function App() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [currentRole, setCurrentRole] = useState<string | null>(null);
   const [companyId, setCompanyId] = useState<string>('');
- useEffect(() => {
-  supabase.auth.getSession().then(({ data }) => {
-    setIsAuthenticated(!!data.session);
-  });
-
-  const {
-    data: { subscription },
-  } = supabase.auth.onAuthStateChange((_event, session) => {
-    setIsAuthenticated(!!session);
-  });
-
-  return () => subscription.unsubscribe();
-}, []);
+  const [authUserId, setAuthUserId] = useState('');
+  const [sessionReady, setSessionReady] = useState(false);
+  const [companyReady, setCompanyReady] = useState(false);
+  const [resolvedUserId, setResolvedUserId] = useState('');
+  const [identityError, setIdentityError] = useState('');
+  useEffect(() => {
+    let cancelled = false;
+    let authEventSeen = false;
+    const apply = (session: any) => {
+      if (cancelled) return;
+      setIsAuthenticated(!!session); setAuthUserId(session?.user?.id || ''); setSessionReady(true);
+    };
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => { authEventSeen = true; apply(session); });
+    void supabase.auth.getSession().then(({ data, error }) => {
+      if (!cancelled && !authEventSeen) { if (error) setIdentityError('Não foi possível verificar a sessão.'); apply(data.session); }
+    });
+    return () => { cancelled = true; subscription.unsubscribe(); };
+  }, []);
+  const logout = async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) alert('Não foi possível encerrar a sessão. Confira a conexão e tente novamente.');
+  };
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [attendanceDate, setAttendanceDate] = useState<string | undefined>();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
@@ -149,11 +159,13 @@ export default function App() {
     void loadOrdersForCompany();
   }, [isAuthenticated, companyId]);
   useEffect(() => {
-    if (!isAuthenticated) return;
+    let cancelled = false;
+    setCompanyReady(false); setCompanyId(''); setCurrentRole(null); setIdentityError('');
+    if (!authUserId) { setCompanyReady(true); setResolvedUserId(''); return; }
 
     const loadCompany = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user || user.id !== authUserId || cancelled) return;
 
       const { data: membership, error: membershipError } = await supabase
         .from('company_members')
@@ -162,12 +174,9 @@ export default function App() {
         .eq('active', true)
         .maybeSingle();
 
-      if (membershipError || !membership) {
-        console.error('Empresa vinculada não encontrada.', membershipError);
-        return;
-      }
-setCurrentRole(membership.role);
-setCompanyId(membership.company_id);
+      if (cancelled) return;
+      if (membershipError) throw membershipError;
+      if (!membership) return;
       const { data: company, error: companyError } = await supabase
         .from('companies')
         .select('id, name, subtitle, shop_category, phone, email, address, pix_key, owner_name, logo_url, accent_color, document, instagram')
@@ -176,10 +185,11 @@ setCompanyId(membership.company_id);
         .maybeSingle();
 
       if (companyError || !company) {
-        console.error('Não foi possível carregar a empresa.', companyError);
-        return;
+        throw companyError || new Error('Empresa indisponível.');
       }
 
+      if (cancelled) return;
+      setCurrentRole(membership.role); setCompanyId(membership.company_id);
       setShopSettings({
         id: company.id,
         name: company.name,
@@ -197,10 +207,14 @@ setCompanyId(membership.company_id);
       });
     };
 
-    void loadCompany();
-  }, [isAuthenticated]);
+    void loadCompany().catch(() => { if (!cancelled) setIdentityError('Não foi possível carregar sua empresa. Saia e entre novamente.'); })
+      .finally(() => { if (!cancelled) { setCompanyReady(true); setResolvedUserId(authUserId); } });
+    return () => { cancelled = true; };
+  }, [authUserId]);
 
-  const team = useTeam(isAuthenticated ? companyId : '', currentRole);
+  const isManagement = ['owner','admin','manager'].includes(currentRole || '');
+  const team = useTeam(isAuthenticated && isManagement ? companyId : '', currentRole);
+  const clock = useClock(authUserId, companyId, sessionReady && companyReady && resolvedUserId === authUserId);
   const { staffList, staffWorkLogs } = team;
 
   // Calendar & Scheduling State
@@ -605,32 +619,6 @@ setCompanyId(membership.company_id);
   };
 
   // Handlers
-  const handleLoginSuccess = (email: string, customTenant?: { name: string; category?: any }) => {
-    // Check if matching a demo tenant
-    const matchedTenant = DEMO_SAAS_TENANTS.find((t) => t.email.toLowerCase() === email.toLowerCase());
-    
-    if (matchedTenant) {
-      setShopSettings(matchedTenant.shopSettings);
-    } else if (customTenant) {
-      setShopSettings({
-        ...INITIAL_SHOP_SETTINGS,
-        id: 'tenant_' + Date.now(),
-        name: customTenant.name,
-        subtitle: `${customTenant.category || 'Estética Automotiva'} VIP`,
-        shopCategory: customTenant.category || 'Estética Automotiva',
-        email: email,
-        ownerName: email.split('@')[0],
-      });
-    } else {
-      setShopSettings({
-        ...shopSettings,
-        email: email,
-      });
-    }
-    
-    setIsAuthenticated(true);
-  };
-
   const handleSaveNewOS = (newOrder: ServiceOrder) => {
     setOrders([newOrder, ...orders]);
     
@@ -833,9 +821,15 @@ setCompanyId(membership.company_id);
   };
 
   // If not authenticated, render Login view with tenant selection
-  if (!isAuthenticated) {
-    return <AuthView onLoginSuccess={handleLoginSuccess} />;
-  }
+  if (!sessionReady || (isAuthenticated && (!companyReady || resolvedUserId !== authUserId))) return <div className="min-h-dvh bg-slate-950 p-6 text-white">Verificando seu acesso…</div>;
+  if (!isAuthenticated) return <AuthView />;
+  if (!companyId || !isManagement) return <div className="min-h-dvh bg-slate-950 p-4 text-white">
+    <div className="mx-auto max-w-3xl">
+      <button onClick={() => void logout()} className="mb-4 text-blue-300 underline">Sair da conta</button>
+      {identityError && <p role="alert">{identityError}</p>}
+      <ClockView clock={clock} staffList={[]} />
+    </div>
+  </div>;
 
   // Yard active cars count
   const carsInYardCount = orders.filter((o) => o.status !== 'Pronto para Entrega').length;
@@ -852,7 +846,7 @@ setCompanyId(membership.company_id);
             setActiveTab(tab);
             setIsMobileMenuOpen(false);
           }}
-          onLogout={() => setIsAuthenticated(false)}
+          onLogout={() => void logout()}
           pendingCount={carsInYardCount}
           isMobileOpen={isMobileMenuOpen}
           onCloseMobile={() => setIsMobileMenuOpen(false)}
@@ -864,7 +858,9 @@ setCompanyId(membership.company_id);
           <Header
             settings={shopSettings}
             activeViewTitle={
-              activeTab === 'dashboard'
+              activeTab === 'ponto'
+                ? 'Ponto da equipe'
+                : activeTab === 'dashboard'
                 ? 'Dashboard'
                 : activeTab === 'agendamento'
                 ? 'Agenda & Agendamentos'
@@ -885,7 +881,9 @@ setCompanyId(membership.company_id);
                 : 'Configurações do Perfil'
             }
             activeViewSubtitle={
-              activeTab === 'dashboard'
+              activeTab === 'ponto'
+                ? 'Registros dos funcionários e validação pela gestão'
+                : activeTab === 'dashboard'
                 ? 'Visão rápida da operação da sua estética'
                 : activeTab === 'agendamento'
                 ? 'Calendário de serviços, observações de pátio e presenças/diárias da equipe'
@@ -940,6 +938,8 @@ setCompanyId(membership.company_id);
 
           {/* Shared footer below the views reserves space for mobile navigation. */}
           <div className="flex-1 pb-6 md:pb-10">
+            {activeTab === 'ponto' && <ClockView clock={clock} staffList={staffList} />}
+            <ClockAlerts clock={clock} onOpen={() => setActiveTab('ponto')} />
             {activeTab === 'dashboard' && (
               <DashboardView
                 orders={orders}
