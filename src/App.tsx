@@ -42,6 +42,7 @@ import { SettingsView } from './components/SettingsView';
 import { OSDetailModal } from './components/OSDetailModal';
 import { AuthView } from './components/AuthView';
 import { BusinessOnboarding } from './components/BusinessOnboarding';
+import { UserGuide } from './components/UserGuide';
 import { isModuleEnabled, isTabEnabled, normalizeBusinessAreas, normalizeBusinessModules } from './lib/businessProfile';
 import { QuickStockOutflowModal } from './components/QuickStockOutflowModal';
 import { PurchaseOrderModal } from './components/PurchaseOrderModal';
@@ -57,6 +58,7 @@ export default function App() {
   const [resolvedUserId, setResolvedUserId] = useState('');
   const [identityError, setIdentityError] = useState('');
   const [accessMessage, setAccessMessage] = useState('');
+  const [isUserGuideOpen, setIsUserGuideOpen] = useState(false);
   const [passwordRecovery, setPasswordRecovery] = useState(
     () => new URLSearchParams(window.location.hash.slice(1)).get('type') === 'recovery'
   );
@@ -880,6 +882,13 @@ export default function App() {
     setCombosCatalog(combosCatalog.filter((c) => c.id !== id));
   };
 
+  const guideStorageKey = authUserId && companyId ? `agenda-detailer:guide:${authUserId}:${companyId}` : '';
+
+  useEffect(() => {
+    if (!companyReady || !shopSettings.onboardingCompleted || !guideStorageKey) return;
+    if (window.localStorage.getItem(guideStorageKey) !== 'completed') setIsUserGuideOpen(true);
+  }, [companyReady, guideStorageKey, shopSettings.onboardingCompleted]);
+
   // If not authenticated, render Login view with tenant selection
   if (passwordRecovery) return <AuthView passwordRecovery onPasswordRecoveryComplete={() => {
     setPasswordRecovery(false);
@@ -902,6 +911,15 @@ export default function App() {
 
   // Yard active cars count
   const carsInYardCount = orders.filter((o) => o.status !== 'Pronto para Entrega').length;
+  const closeUserGuide = () => {
+    if (guideStorageKey) window.localStorage.setItem(guideStorageKey, 'completed');
+    setIsUserGuideOpen(false);
+  };
+
+  const navigateFromGuide = (tab: ActiveTab) => {
+    setActiveTab(tab);
+    closeUserGuide();
+  };
 
   return (
     <div className="app-shell min-h-screen bg-[#0d121f] text-slate-100 flex flex-col font-sans antialiased selection:bg-blue-500 selection:text-white">
@@ -978,6 +996,7 @@ export default function App() {
                 : 'Configurações de identidade visual, logo e dados cadastrais'
             }
             onNewOSClick={isModuleEnabled(enabledModules, 'ordens_servico') ? () => setActiveTab('nova-os') : undefined}
+            onOpenGuide={() => setIsUserGuideOpen(true)}
             carsInYardCount={carsInYardCount}
             showYard={isModuleEnabled(enabledModules, 'patio')}
             lowStockCount={lowStockCount}
@@ -1186,6 +1205,8 @@ export default function App() {
           <AgendaDetailerFooter onOpenLegal={() => setActiveTab('legal')} />
         </main>
       </div>
+
+      {isUserGuideOpen && <UserGuide onClose={closeUserGuide} onNavigate={navigateFromGuide} />}
 
       {/* OS Detail Modal */}
       {selectedOrderForModal && (

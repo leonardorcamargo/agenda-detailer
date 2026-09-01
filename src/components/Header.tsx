@@ -1,6 +1,6 @@
 import React from 'react';
 import { ShopSettings } from '../types';
-import { Wrench, PlusCircle, Menu, X, Zap, AlertTriangle } from 'lucide-react';
+import { Wrench, PlusCircle, Menu, X, Zap, AlertTriangle, CircleHelp } from 'lucide-react';
 import { AgendaDetailerMark } from './AgendaDetailerBrand';
 
 interface HeaderProps {
@@ -8,6 +8,7 @@ interface HeaderProps {
   activeViewTitle: string;
   activeViewSubtitle?: string;
   onNewOSClick?: () => void;
+  onOpenGuide?: () => void;
   carsInYardCount: number;
   lowStockCount?: number;
   onOpenQuickStockOutflow?: () => void;
@@ -22,6 +23,7 @@ export const Header: React.FC<HeaderProps> = ({
   activeViewTitle,
   activeViewSubtitle,
   onNewOSClick,
+  onOpenGuide,
   carsInYardCount,
   lowStockCount = 0,
   onOpenQuickStockOutflow,
@@ -101,6 +103,18 @@ export const Header: React.FC<HeaderProps> = ({
           <span className="hidden lg:inline">Nova OS</span>
           <span className="sr-only lg:hidden">Nova ordem de serviço</span>
         </button>}
+
+        {onOpenGuide && (
+          <button
+            type="button"
+            onClick={onOpenGuide}
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#2b3e61] bg-[#172236] text-blue-300 transition-colors hover:bg-blue-500/15 hover:text-blue-200"
+            title="Abrir guia de uso"
+            aria-label="Abrir guia de uso"
+          >
+            <CircleHelp className="h-5 w-5" />
+          </button>
+        )}
 
         {/* Platform brand; user identity remains in the sidebar menu. */}
         <div className="flex items-center pl-1.5 lg:pl-2 border-l border-[#26334d]" title="Agenda Detailer">
