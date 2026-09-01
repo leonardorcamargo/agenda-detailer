@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { brazilDate } from '../lib/financialPeriod';
+import { escapeIlikeTerm } from '../lib/customerVehicleSelection';
 import { StaffAttendance } from './StaffAttendance';
 import { supabase } from '../lib/supabase';
 import { 
@@ -62,6 +63,9 @@ interface CalendarViewProps {
   onDeleteStaffWorkLog: (id: string) => Promise<boolean>;
 }
 
+type AppointmentCustomer = { id: string; name: string; phone: string | null };
+type AppointmentVehicle = { id: string; plate: string; brand: string | null; model: string | null; color: string | null; year: string | null };
+
 export const CalendarView: React.FC<CalendarViewProps> = ({
   attendanceBusy, canManageAttendance, canDeleteAttendance,
   companyId,
@@ -101,6 +105,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [plateLookupMessage, setPlateLookupMessage] = useState<string | null>(null);
   const [isPlateLookupLoading, setIsPlateLookupLoading] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerResults, setCustomerResults] = useState<AppointmentCustomer[]>([]);
+  const [customerVehicles, setCustomerVehicles] = useState<AppointmentVehicle[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<AppointmentCustomer | null>(null);
+  const [customerLookupMessage, setCustomerLookupMessage] = useState<string | null>(null);
+  const [isCustomerLookupLoading, setIsCustomerLookupLoading] = useState(false);
+  const customerLookupRequest = useRef(0);
 
   // Form states
   const [aptForm, setAptForm] = useState<Partial<Appointment>>({
@@ -187,6 +198,72 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     setPlateLookupMessage('Veículo e cliente encontrados no cadastro.');
   };
 
+  const handleLookupAppointmentCustomer = async () => {
+    const term = customerSearch.trim();
+    if (term.length < 2) {
+      setCustomerLookupMessage('Digite pelo menos 2 letras do nome.');
+      return;
+    }
+    const request = ++customerLookupRequest.current;
+    setIsCustomerLookupLoading(true);
+    setCustomerResults([]);
+    setCustomerVehicles([]);
+    setSelectedCustomer(null);
+    setCustomerLookupMessage(null);
+    const { data, error } = await supabase
+      .from('customers')
+      .select('id, name, phone')
+      .eq('company_id', companyId)
+      .eq('active', true)
+      .ilike('name', `%${escapeIlikeTerm(term)}%`)
+      .order('name')
+      .limit(10);
+    if (customerLookupRequest.current !== request) return;
+    setIsCustomerLookupLoading(false);
+    if (error) {
+      console.error('Erro ao consultar cliente no agendamento.', error);
+      setCustomerLookupMessage('Não foi possível consultar clientes agora.');
+      return;
+    }
+    const results = (data ?? []) as AppointmentCustomer[];
+    setCustomerResults(results);
+    setCustomerLookupMessage(results.length ? 'Selecione o cliente correto.' : 'Cliente não encontrado. Preencha os dados manualmente.');
+  };
+
+  const selectAppointmentCustomer = async (customer: AppointmentCustomer) => {
+    const request = ++customerLookupRequest.current;
+    setSelectedCustomer(customer);
+    setCustomerResults([]);
+    setCustomerVehicles([]);
+    setIsCustomerLookupLoading(true);
+    setAptForm(current => ({ ...current, clientName: customer.name, clientPhone: customer.phone ?? '' }));
+    setCustomerLookupMessage('Cliente selecionado. Escolha um veículo ou informe outro carro.');
+    const { data, error } = await supabase
+      .from('vehicles')
+      .select('id, plate, brand, model, color, year')
+      .eq('company_id', companyId)
+      .eq('customer_id', customer.id)
+      .eq('active', true)
+      .order('created_at', { ascending: false });
+    if (customerLookupRequest.current !== request) return;
+    setIsCustomerLookupLoading(false);
+    if (error) {
+      console.error('Erro ao carregar veículos do cliente no agendamento.', error);
+      setCustomerLookupMessage('Cliente selecionado, mas não foi possível carregar os veículos.');
+      return;
+    }
+    setCustomerVehicles((data ?? []) as AppointmentVehicle[]);
+  };
+
+  const selectAppointmentVehicle = (vehicle: AppointmentVehicle) => {
+    setAptForm(current => ({
+      ...current,
+      vehiclePlate: vehicle.plate,
+      vehicleModel: [vehicle.brand, vehicle.model].filter(Boolean).join(' '),
+    }));
+    setPlateLookupMessage('Veículo selecionado para este agendamento.');
+  };
+
   const handleAddCustomAptService = () => {
     if (!customAptServiceName.trim()) return;
     const priceVal = typeof customAptServicePrice === 'number' ? customAptServicePrice : 0;
@@ -255,6 +332,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const handleOpenAddApt = (dateStr?: string) => {
     setEditingApt(null);
     setPlateLookupMessage(null);
+    ++customerLookupRequest.current;
+    setCustomerSearch('');
+    setCustomerResults([]);
+    setCustomerVehicles([]);
+    setSelectedCustomer(null);
+    setCustomerLookupMessage(null);
+    setIsCustomerLookupLoading(false);
     setAptForm({
       clientName: '',
       clientPhone: '',
@@ -276,6 +360,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   const handleOpenEditApt = (apt: Appointment) => {
     setEditingApt(apt);
+    ++customerLookupRequest.current;
+    setCustomerSearch('');
+    setCustomerResults([]);
+    setCustomerVehicles([]);
+    setSelectedCustomer(null);
+    setCustomerLookupMessage(null);
+    setIsCustomerLookupLoading(false);
     setAptForm({ 
       ...apt,
       paymentMethod: apt.paymentMethod || 'Pix',
@@ -979,6 +1070,71 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             </div>
 
             <form onSubmit={handleSaveAppointment} className="p-4 sm:p-5 space-y-4">
+              <div className="space-y-3 rounded-xl border border-blue-500/30 bg-blue-500/5 p-3">
+                <label className="block text-xs font-bold text-blue-300">Consultar cliente cadastrado</label>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    type="search"
+                    placeholder="Digite o nome do cliente"
+                    value={customerSearch}
+                    onChange={(e) => {
+                      setCustomerSearch(e.target.value);
+                      setCustomerResults([]);
+                      setCustomerLookupMessage(null);
+                    }}
+                    className="min-w-0 flex-1 rounded-xl border border-[#23314a] bg-[#111827] px-3 py-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void handleLookupAppointmentCustomer()}
+                    disabled={isCustomerLookupLoading}
+                    className="min-h-10 shrink-0 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-blue-500 disabled:opacity-60"
+                  >
+                    {isCustomerLookupLoading ? 'Consultando…' : 'Consultar cliente'}
+                  </button>
+                </div>
+
+                {!!customerResults.length && <div className="space-y-2">
+                  {customerResults.map(customer => <button
+                    key={customer.id}
+                    type="button"
+                    onClick={() => void selectAppointmentCustomer(customer)}
+                    className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border border-[#34445f] bg-[#111827] p-3 text-left text-sm text-white hover:border-blue-400"
+                  >
+                    <span className="min-w-0 break-words font-medium">{customer.name}</span>
+                    <span className="shrink-0 text-xs text-slate-400">{customer.phone || 'Sem contato'}</span>
+                  </button>)}
+                  {customerResults.length === 10 && <p className="text-xs text-amber-300">Mostrando os 10 primeiros. Digite mais letras para refinar.</p>}
+                </div>}
+
+                {selectedCustomer && <div className="space-y-2">
+                  <p className="text-xs text-emerald-300"><strong>{selectedCustomer.name}</strong> selecionado.</p>
+                  {!!customerVehicles.length && <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {customerVehicles.map(vehicle => <button
+                      key={vehicle.id}
+                      type="button"
+                      onClick={() => selectAppointmentVehicle(vehicle)}
+                      className="min-h-11 rounded-lg border border-[#34445f] bg-[#111827] p-3 text-left text-xs text-slate-200 hover:border-blue-400"
+                    >
+                      <strong className="block text-sm text-white">{vehicle.plate}</strong>
+                      {[vehicle.brand, vehicle.model, vehicle.color, vehicle.year].filter(Boolean).join(' · ') || 'Dados não informados'}
+                    </button>)}
+                  </div>}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAptForm(current => ({ ...current, vehiclePlate: '', vehicleModel: '' }));
+                      setPlateLookupMessage('Informe os dados do outro veículo. O cliente selecionado foi mantido.');
+                    }}
+                    className="text-xs font-bold text-blue-300 underline"
+                  >
+                    Usar outro veículo
+                  </button>
+                </div>}
+
+                {customerLookupMessage && <p className="text-xs text-blue-300">{customerLookupMessage}</p>}
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-300 mb-1">
