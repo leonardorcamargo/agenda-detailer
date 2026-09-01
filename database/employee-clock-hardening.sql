@@ -1,11 +1,16 @@
 -- Endurecimento aplicado após employee_clock_audit. Sem alterações de dados.
-alter table private.clock_accounts add constraint clock_account_company_staff_fk foreign key(company_id,staff_id) references public.staff(company_id,id) on delete restrict;
-alter table private.clock_invites add constraint clock_invite_company_staff_fk foreign key(company_id,staff_id) references public.staff(company_id,id) on delete restrict;
+do $$ begin
+  alter table private.clock_accounts add constraint clock_account_company_staff_fk foreign key(company_id,staff_id) references public.staff(company_id,id) on delete restrict;
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table private.clock_invites add constraint clock_invite_company_staff_fk foreign key(company_id,staff_id) references public.staff(company_id,id) on delete restrict;
+exception when duplicate_object then null; end $$;
+alter table private.clock_invites alter column email drop not null;
 create or replace function private.employee_clock(p_action text,p_data jsonb)
 returns jsonb language plpgsql security definer set search_path='' as $clock$
 declare
   actor uuid := auth.uid(); session_uid uuid;
-  c uuid; aid uuid; sid uuid; code text; mail text; k text; req uuid;
+  c uuid; aid uuid; sid uuid; code text; mail text; k text; req uuid; anonymous_user boolean;
   acc private.clock_accounts%rowtype; ev private.clock_events%rowtype; prior private.clock_events%rowtype;
   invite private.clock_invites%rowtype; correction private.clock_corrections%rowtype;
   is_manager boolean; day date; result jsonb; ids uuid[]; event_ids bigint[];
@@ -14,30 +19,36 @@ declare
 begin
   if actor is null then raise exception 'Sessão necessária.' using errcode='42501'; end if;
   session_uid := nullif(auth.jwt()->>'session_id','')::uuid;
+  select coalesce(u.is_anonymous,false) into anonymous_user from auth.users u
+    where u.id=actor and (u.banned_until is null or u.banned_until<now_at)
+      and (u.email_confirmed_at is not null or u.is_anonymous);
   if not exists(select 1 from auth.sessions s where s.id=session_uid and s.user_id=actor and (s.not_after is null or s.not_after>now_at))
-     or not exists(select 1 from auth.users u where u.id=actor and u.email_confirmed_at is not null and (u.banned_until is null or u.banned_until<now_at))
-  then raise exception 'Entre novamente com seu e-mail confirmado.' using errcode='42501'; end if;
+     or anonymous_user is null
+  then raise exception 'Entre novamente para continuar.' using errcode='42501'; end if;
 
   if p_action='invite' then
+    if anonymous_user then raise exception 'Acesso negado.' using errcode='42501'; end if;
     sid := (p_data->>'staff_id')::uuid;
     select s.company_id into c from public.staff s join public.companies co on co.id=s.company_id and co.active
       where s.id=sid and s.active and s.status='Ativo' for update of s;
     if c is null or not private.is_company_admin(c) then raise exception 'Somente administradores podem liberar acesso.' using errcode='42501'; end if;
     if exists(select 1 from private.clock_accounts a where a.staff_id=sid) then raise exception 'Pessoa já vinculada. Use suspender/reativar; não troque a identidade.'; end if;
-    mail := lower(trim(p_data->>'email'));
-    if mail is null or mail not like '%_@_%._%' or char_length(mail)>254 then raise exception 'E-mail inválido.'; end if;
-    code := encode(extensions.gen_random_bytes(32),'hex');
+    mail := case when coalesce((p_data->>'device')::boolean,false) then null else lower(trim(p_data->>'email')) end;
+    if mail is not null and (mail not like '%_@_%._%' or char_length(mail)>254) then raise exception 'E-mail inválido.'; end if;
+    code := case when mail is null then encode(extensions.gen_random_bytes(8),'hex') else encode(extensions.gen_random_bytes(32),'hex') end;
     insert into private.clock_invites(staff_id,company_id,email,token_hash,expires_at,created_by)
-      values(sid,c,mail,encode(extensions.digest(code,'sha256'),'hex'),now_at+interval '24 hours',actor)
+      values(sid,c,mail,encode(extensions.digest(lower(code),'sha256'),'hex'),now_at+case when mail is null then interval '15 minutes' else interval '24 hours' end,actor)
       on conflict(staff_id) do update set email=excluded.email,token_hash=excluded.token_hash,
         expires_at=excluded.expires_at,created_by=actor,created_at=now_at;
-    return jsonb_build_object('code',code,'expires_at',now_at+interval '24 hours');
+    return jsonb_build_object('code',code,'expires_at',now_at+case when mail is null then interval '15 minutes' else interval '24 hours' end);
   elsif p_action='activate' then
-    code := trim(p_data->>'code');
-    if code is null or char_length(code)<>64 then raise exception 'Código inválido ou expirado.'; end if;
+    code := lower(regexp_replace(trim(p_data->>'code'),'[^0-9a-f]','','g'));
+    if code is null or char_length(code) not in (16,64) then raise exception 'Código inválido ou expirado.'; end if;
     select * into invite from private.clock_invites i where i.token_hash=encode(extensions.digest(code,'sha256'),'hex') for update;
     select lower(u.email) into mail from auth.users u where u.id=actor;
-    if invite.staff_id is null or invite.expires_at<=now_at or invite.email is distinct from mail
+    if invite.staff_id is null or invite.expires_at<=now_at
+      or (invite.email is null and not anonymous_user)
+      or (invite.email is not null and (anonymous_user or invite.email is distinct from mail))
       or not exists(select 1 from public.companies co where co.id=invite.company_id and co.active)
       or not exists(select 1 from public.company_members m where m.company_id=invite.company_id and m.user_id=invite.created_by and m.active and m.role in ('owner','admin'))
     then raise exception 'Código inválido ou expirado.'; end if;

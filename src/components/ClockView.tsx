@@ -22,8 +22,6 @@ export const ClockAlerts: React.FC<{ clock: Clock; onOpen: () => void }> = ({ cl
 };
 
 export const ClockView: React.FC<{ clock: Clock; staffList: StaffMember[] }> = ({ clock, staffList }) => {
-  const [code, setCode] = useState('');
-  const [email, setEmail] = useState('');
   const [staffId, setStaffId] = useState('');
   const [invite, setInvite] = useState<{ code: string; expires_at: string } | null>(null);
   const [message, setMessage] = useState('');
@@ -61,28 +59,18 @@ export const ClockView: React.FC<{ clock: Clock; staffList: StaffMember[] }> = (
       <p className="text-xs text-slate-400">Esqueceu uma marcação? Registre agora e solicite o ajuste no histórico, explicando o motivo. O horário original permanece.</p>
     </div>)}
 
-    {data && <details className="rounded-xl border border-slate-700 p-4" open={!data.manager && !data.accounts.length}>
-      <summary className="cursor-pointer font-semibold text-blue-300">Ativar meu acesso com código</summary>
-      <form className="mt-3 space-y-3" onSubmit={async e => { e.preventDefault(); const result = await clock.act('activate', { code: code.trim() }); if (result) { setCode(''); setMessage('Acesso ativado.'); } }}>
-        <p className="text-xs text-slate-400">Entre com o e-mail indicado ao administrador, confirme seu e-mail e use o código que ele entregou. Esse acesso libera somente seu ponto.</p>
-        <label className="block text-sm text-slate-300">Código de ativação<input className={input} autoComplete="off" value={code} minLength={64} maxLength={64} required disabled={clock.busy} onChange={e => setCode(e.target.value)} /></label>
-        <button className={button} disabled={clock.busy}>Ativar</button>
-      </form>
-    </details>}
-
     {data?.admin && <details className="rounded-xl border border-slate-700 p-4">
       <summary className="cursor-pointer font-semibold text-blue-300">Liberar acesso de funcionário</summary>
-      <form className="mt-3 space-y-3" onSubmit={async e => { e.preventDefault(); setInvite(null); const result = await clock.act('invite', { staff_id: staffId, email }); if (result) setInvite(result); }}>
+      <form className="mt-3 space-y-3" onSubmit={async e => { e.preventDefault(); setInvite(null); const result = await clock.act('invite', { staff_id: staffId, device: true }); if (result) setInvite(result); }}>
         <label className="block text-sm text-slate-300">Funcionário<select className={input} required disabled={clock.busy} value={staffId} onChange={e => { setStaffId(e.target.value); setInvite(null); }}>
           <option value="">Selecione</option>{staffList.filter(s => s.status === 'Ativo').map(s => <option value={s.id} key={s.id}>{s.name}</option>)}</select></label>
-        <label className="block text-sm text-slate-300">E-mail pessoal confirmado com o funcionário<input className={input} type="email" required disabled={clock.busy} value={email} onChange={e => { setEmail(e.target.value); setInvite(null); }} /></label>
-        <button className={button} disabled={clock.busy}>Gerar código de acesso</button>
+        <button className={button} disabled={clock.busy}>Gerar código para o celular</button>
       </form>
       {invite && <div className="mt-3 space-y-2 text-sm text-slate-200">
         <p>Entregue somente à pessoa escolhida. Código de uso único, válido até {clockTime(invite.expires_at)}. Gerar outro invalida o anterior.</p>
-        <code className="block break-all rounded-lg bg-slate-950 p-3">{invite.code}</code>
+        <code className="block rounded-lg bg-slate-950 p-3 text-center text-lg tracking-wider">{invite.code.match(/.{1,4}/g)?.join('-')}</code>
         <button className={button} onClick={async () => { try { await navigator.clipboard.writeText(invite.code); setMessage('Código copiado.'); } catch { setMessage('Selecione e copie o código exibido.'); } }}>Copiar código</button>
-        <p>O funcionário abre o aplicativo → cria seu acesso → confirma o e-mail → entra → ativa com o código. Não peça nem compartilhe senhas.</p>
+        <p>O funcionário abre o Agenda Detailer → toca em “Sou funcionário” → digita o código. Nenhum e-mail ou senha é necessário.</p>
       </div>}
     </details>}
 
