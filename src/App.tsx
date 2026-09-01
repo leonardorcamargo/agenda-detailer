@@ -1021,6 +1021,7 @@ export default function App() {
               <NewOSView
                 companyId={companyId}
                 servicesCatalog={servicesCatalog}
+                orders={orders}
                 nextOSNumber={nextOSNumber}
                 onSaveOS={handleSaveNewOS}
                 onCancel={() => setActiveTab('dashboard')}
