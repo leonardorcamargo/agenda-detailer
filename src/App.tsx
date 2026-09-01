@@ -54,6 +54,9 @@ export default function App() {
   const [resolvedUserId, setResolvedUserId] = useState('');
   const [identityError, setIdentityError] = useState('');
   const [accessMessage, setAccessMessage] = useState('');
+  const [passwordRecovery, setPasswordRecovery] = useState(
+    () => new URLSearchParams(window.location.hash.slice(1)).get('type') === 'recovery'
+  );
   useEffect(() => {
     let cancelled = false;
     let authEventSeen = false;
@@ -61,7 +64,11 @@ export default function App() {
       if (cancelled) return;
       setIsAuthenticated(!!session); setAuthUserId(session?.user?.id || ''); setSessionReady(true);
     };
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => { authEventSeen = true; apply(session); });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      authEventSeen = true;
+      if (event === 'PASSWORD_RECOVERY') setPasswordRecovery(true);
+      apply(session);
+    });
     void supabase.auth.getSession().then(({ data, error }) => {
       if (!cancelled && !authEventSeen) { if (error) setIdentityError('Não foi possível verificar a sessão.'); apply(data.session); }
     });
@@ -845,6 +852,10 @@ export default function App() {
   };
 
   // If not authenticated, render Login view with tenant selection
+  if (passwordRecovery) return <AuthView passwordRecovery onPasswordRecoveryComplete={() => {
+    setPasswordRecovery(false);
+    window.history.replaceState({}, '', window.location.pathname + window.location.search);
+  }} />;
   if (!sessionReady || (isAuthenticated && (!companyReady || resolvedUserId !== authUserId))) return <div className="min-h-dvh bg-slate-950 p-6 text-white">Verificando seu acesso…</div>;
   if (!isAuthenticated) return <AuthView />;
   if (!companyId || !isManagement) return <div className="min-h-dvh bg-slate-950 p-4 text-white">
