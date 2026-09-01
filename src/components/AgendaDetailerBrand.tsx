@@ -15,11 +15,21 @@ export const AgendaDetailerMark: React.FC<{ className?: string; decorative?: boo
   />
 );
 
-export const AgendaDetailerFooter: React.FC = () => (
+export const AgendaDetailerFooter: React.FC<{ onOpenLegal?: () => void }> = ({ onOpenLegal }) => (
   <footer className="no-print shrink-0 px-4 pt-3 pb-6">
-    <div className="flex items-center justify-center gap-2 text-[11px] leading-5 text-slate-400">
-      <AgendaDetailerMark decorative className="w-6 h-7 opacity-50 grayscale" />
-      <p>Desenvolvido por <span className="font-medium">Agenda Detailer</span></p>
+    <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[11px] leading-5 text-slate-400">
+      <span className="flex items-center gap-2">
+        <AgendaDetailerMark decorative className="w-6 h-7 opacity-50 grayscale" />
+        <span>© 2026 <span className="font-medium">Agenda Detailer</span></span>
+      </span>
+      {onOpenLegal && (
+        <>
+          <span aria-hidden="true">·</span>
+          <button type="button" onClick={onOpenLegal} className="underline-offset-2 hover:text-blue-300 hover:underline">
+            Termos, Privacidade e LGPD
+          </button>
+        </>
+      )}
     </div>
   </footer>
 );

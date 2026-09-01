@@ -11,12 +11,13 @@ import {
   Layers,
   Flame,
   Settings,
+  Scale,
   StickyNote,
   LogOut,
   X
 } from 'lucide-react';
 
-export type ActiveTab = 'ponto' | 'dashboard' | 'agendamento' | 'nova-os' | 'patio' | 'clientes' | 'financeiro' | 'mao-de-obra' | 'catalogo' | 'combos' | 'lembretes' | 'configuracoes';
+export type ActiveTab = 'ponto' | 'dashboard' | 'agendamento' | 'nova-os' | 'patio' | 'clientes' | 'financeiro' | 'mao-de-obra' | 'catalogo' | 'combos' | 'lembretes' | 'legal' | 'configuracoes';
 
 interface SidebarProps {
   settings: ShopSettings;
@@ -51,6 +52,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'catalogo', label: 'Catálogo', shortLabel: 'Catálogo', icon: Layers, module: 'catalogo' },
     { id: 'combos', label: 'Combos & Pacotes', shortLabel: 'Combos', icon: Flame, module: 'combos' },
     { id: 'lembretes', label: 'Lembretes', shortLabel: 'Lembretes', icon: StickyNote, module: 'lembretes' },
+    { id: 'legal', label: 'Legal e Privacidade', shortLabel: 'Legal', icon: Scale },
     { id: 'configuracoes', label: 'Configurações do Perfil', shortLabel: 'Perfil', icon: Settings },
   ];
   const visibleMenuItems = menuItems.filter((item) => !item.module || isModuleEnabled(enabledModules, item.module));

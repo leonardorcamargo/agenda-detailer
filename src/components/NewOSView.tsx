@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { VehicleInspectionDiagram } from './VehicleInspectionDiagram';
 import { escapeIlikeTerm, normalizePlate, resolveVehicleCustomer } from '../lib/customerVehicleSelection';
 import { buildServiceUsage, mostUsedServiceKeys, serviceUsageKey, sortServicesByUsage } from '../lib/serviceFrequency';
+import { buildTermSnapshot, ENGINE_SERVICE_TERM, GENERAL_SERVICE_TERM, requiresEngineTerm } from '../legal/legalContent';
 import { 
   Search, 
   Sparkles, 
@@ -86,6 +87,9 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
   const [customDescription, setCustomDescription] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Pendente');
   const [paymentStatus, setPaymentStatus] = useState<'Pago' | 'Pendente' | 'Parcial' | 'Fiado'>('Pendente');
+  const [generalTermAccepted, setGeneralTermAccepted] = useState(false);
+  const [engineTermAccepted, setEngineTermAccepted] = useState(false);
+  const [termResponsibleName, setTermResponsibleName] = useState('');
 
   const handleAddCustomService = () => {
     if (!customServiceName.trim()) return;
@@ -316,6 +320,7 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
 
   const subtotal = finalServices.reduce((acc, s) => acc + (s.price || 0), 0);
   const totalValue = Math.max(0, subtotal - discount);
+  const engineTermRequired = requiresEngineTerm(finalServices.map((service) => service.name));
 
   // Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
@@ -334,6 +339,23 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
       setLookupMessage('Informe ao menos a placa e o nome do cliente.');
       return;
     }
+
+    if (engineTermRequired && !engineTermAccepted) {
+      setLookupMessage('O termo de limpeza ou lavagem de motor deve ser confirmado antes de concluir a OS.');
+      return;
+    }
+
+    if ((generalTermAccepted || engineTermAccepted) && !termResponsibleName.trim()) {
+      setLookupMessage('Informe o nome de quem confirmou o termo de responsabilidade.');
+      return;
+    }
+
+    const termSnapshot = buildTermSnapshot({
+      generalAccepted: generalTermAccepted,
+      engineAccepted: engineTermAccepted,
+      responsibleName: termResponsibleName,
+    });
+    const descriptionWithTerms = [customDescription.trim(), termSnapshot].filter(Boolean).join('\n\n');
 
     let customerId: string | null = selectedCustomerId;
 
@@ -519,7 +541,7 @@ const realOSNumber = lastOrder?.os_number
         vehicle_id: vehicleId,
         os_number: realOSNumber,
         status: 'Aguardando',
-        custom_description: customDescription.trim() || null,
+        custom_description: descriptionWithTerms || null,
         discount,
         total_value: totalValue,
         payment_method: paymentMethod,
@@ -579,7 +601,7 @@ const realOSNumber = lastOrder?.os_number
       services: finalServices,
       discount,
       totalValue,
-      customDescription,
+      customDescription: descriptionWithTerms,
       projectSteps: [],
       paymentMethod,
       paymentStatus,
@@ -1226,6 +1248,40 @@ const realOSNumber = lastOrder?.os_number
             className="w-full bg-[#1a2436] border border-[#283854] text-white p-3 rounded-xl text-xs focus:outline-none focus:border-blue-500"
           />
         </div>
+      </div>
+
+      <div className="rounded-2xl border border-amber-500/25 bg-[#141c2b] p-5 space-y-4">
+        <div>
+          <h3 className="text-sm font-bold text-white">Termos de responsabilidade</h3>
+          <p className="mt-1 text-xs leading-5 text-slate-400">Confirme somente após apresentar o texto ao cliente. O aceite será registrado junto às observações da OS.</p>
+        </div>
+
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#2b3e61] bg-[#121929] p-3">
+          <input type="checkbox" checked={generalTermAccepted} onChange={(event) => setGeneralTermAccepted(event.target.checked)} className="mt-1 h-4 w-4" />
+          <span>
+            <span className="block text-xs font-semibold text-slate-100">{GENERAL_SERVICE_TERM.title} (opcional)</span>
+            <span className="mt-1 block text-[11px] leading-5 text-slate-400">{GENERAL_SERVICE_TERM.text}</span>
+          </span>
+        </label>
+
+        {engineTermRequired && (
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-rose-500/40 bg-rose-950/15 p-3">
+            <input type="checkbox" checked={engineTermAccepted} onChange={(event) => setEngineTermAccepted(event.target.checked)} className="mt-1 h-4 w-4" />
+            <span>
+              <span className="block text-xs font-semibold text-rose-200">{ENGINE_SERVICE_TERM.title} (obrigatório)</span>
+              <span className="mt-1 block text-[11px] leading-5 text-slate-300">{ENGINE_SERVICE_TERM.text}</span>
+            </span>
+          </label>
+        )}
+
+        {(generalTermAccepted || engineTermAccepted) && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-300">Nome de quem confirmou o termo *</label>
+            <input type="text" value={termResponsibleName} onChange={(event) => setTermResponsibleName(event.target.value)} placeholder="Nome completo do cliente ou responsável" className="w-full rounded-xl border border-[#2b3e61] bg-[#121929] px-3 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none" />
+          </div>
+        )}
+
+        <p className="text-[11px] leading-5 text-amber-300">Modelos provisórios. Substitua pelos textos definitivos e obtenha revisão jurídica antes do lançamento comercial.</p>
       </div>
 
       {/* Floating Bottom Action Bar */}

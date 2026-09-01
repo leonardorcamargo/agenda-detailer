@@ -27,6 +27,7 @@ import {
 
 import { Header } from './components/Header';
 import { AgendaDetailerFooter } from './components/AgendaDetailerBrand';
+import { LegalView } from './components/LegalView';
 import { Sidebar, ActiveTab } from './components/Sidebar';
 import { DashboardView } from './components/DashboardView';
 import { CalendarView } from './components/CalendarView';
@@ -947,6 +948,8 @@ export default function App() {
                 ? 'Combos & Pacotes Promocionais'
                 : activeTab === 'lembretes'
                 ? 'Lembretes'
+                : activeTab === 'legal'
+                ? 'Legal e Privacidade'
                 : 'Configurações do Perfil'
             }
             activeViewSubtitle={
@@ -970,6 +973,8 @@ export default function App() {
                 ? 'Crie pacotes com desconto, gere propagandas para WhatsApp e divulgue nas redes sociais'
                 : activeTab === 'lembretes'
                 ? 'Anotações rápidas para não esquecer o que importa'
+                : activeTab === 'legal'
+                ? 'Termos de uso, proteção de dados e responsabilidades'
                 : 'Configurações de identidade visual, logo e dados cadastrais'
             }
             onNewOSClick={isModuleEnabled(enabledModules, 'ordens_servico') ? () => setActiveTab('nova-os') : undefined}
@@ -1165,6 +1170,8 @@ export default function App() {
               <RemindersView key={companyId} companyId={companyId} role={currentRole} />
             )}
 
+            {activeTab === 'legal' && <LegalView />}
+
             {activeTab === 'configuracoes' && (
               <SettingsView
                 settings={shopSettings}
@@ -1176,7 +1183,7 @@ export default function App() {
               />
             )}
           </div>
-          <AgendaDetailerFooter />
+          <AgendaDetailerFooter onOpenLegal={() => setActiveTab('legal')} />
         </main>
       </div>
 
