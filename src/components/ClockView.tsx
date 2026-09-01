@@ -23,6 +23,7 @@ export const ClockAlerts: React.FC<{ clock: Clock; onOpen: () => void }> = ({ cl
 
 export const ClockView: React.FC<{ clock: Clock; staffList: StaffMember[] }> = ({ clock, staffList }) => {
   const [staffId, setStaffId] = useState('');
+  const [email, setEmail] = useState('');
   const [invite, setInvite] = useState<{ code: string; expires_at: string } | null>(null);
   const [message, setMessage] = useState('');
   const [adjusting, setAdjusting] = useState<number | null>(null);
@@ -43,6 +44,7 @@ export const ClockView: React.FC<{ clock: Clock; staffList: StaffMember[] }> = (
     {clock.error && <p role="alert" className="rounded-lg bg-rose-950 p-3 text-sm text-rose-200">{clock.error}</p>}
     {message && <p role="status" className="text-sm text-blue-200">{message}</p>}
     {!data && <p className="text-slate-300">Carregando acesso ao ponto…</p>}
+    {data && !data.manager && !data.accounts.length && <p className="rounded-xl border border-amber-500/30 bg-amber-950/40 p-4 text-sm text-amber-200">Sua conta ainda não possui autorização. Peça ao administrador o link de convite e abra-o antes de entrar.</p>}
 
     {data?.accounts.filter(a => a.own).map(account => <div key={account.id} className="space-y-3 rounded-xl border border-slate-700 bg-slate-900 p-4">
       <h2 className="font-bold text-white">{account.name} · {account.company_name}</h2>
@@ -61,16 +63,17 @@ export const ClockView: React.FC<{ clock: Clock; staffList: StaffMember[] }> = (
 
     {data?.admin && <details className="rounded-xl border border-slate-700 p-4">
       <summary className="cursor-pointer font-semibold text-blue-300">Liberar acesso de funcionário</summary>
-      <form className="mt-3 space-y-3" onSubmit={async e => { e.preventDefault(); setInvite(null); const result = await clock.act('invite', { staff_id: staffId, device: true }); if (result) setInvite(result); }}>
+      <form className="mt-3 space-y-3" onSubmit={async e => { e.preventDefault(); setInvite(null); const result = await clock.act('invite', { staff_id: staffId, email }); if (result) setInvite(result); }}>
         <label className="block text-sm text-slate-300">Funcionário<select className={input} required disabled={clock.busy} value={staffId} onChange={e => { setStaffId(e.target.value); setInvite(null); }}>
           <option value="">Selecione</option>{staffList.filter(s => s.status === 'Ativo').map(s => <option value={s.id} key={s.id}>{s.name}</option>)}</select></label>
-        <button className={button} disabled={clock.busy}>Gerar código para o celular</button>
+        <label className="block text-sm text-slate-300">E-mail autorizado<input className={input} type="email" required disabled={clock.busy} value={email} onChange={e => { setEmail(e.target.value); setInvite(null); }} /></label>
+        <button className={button} disabled={clock.busy}>Gerar link de convite</button>
       </form>
       {invite && <div className="mt-3 space-y-2 text-sm text-slate-200">
-        <p>Entregue somente à pessoa escolhida. Código de uso único, válido até {clockTime(invite.expires_at)}. Gerar outro invalida o anterior.</p>
-        <code className="block rounded-lg bg-slate-950 p-3 text-center text-lg tracking-wider">{invite.code.match(/.{1,4}/g)?.join('-')}</code>
-        <button className={button} onClick={async () => { try { await navigator.clipboard.writeText(invite.code); setMessage('Código copiado.'); } catch { setMessage('Selecione e copie o código exibido.'); } }}>Copiar código</button>
-        <p>O funcionário abre o Agenda Detailer → toca em “Sou funcionário” → digita o código. Nenhum e-mail ou senha é necessário.</p>
+        <p>Envie somente à pessoa escolhida por WhatsApp ou e-mail. O link é de uso único, válido até {clockTime(invite.expires_at)}; gerar outro invalida o anterior.</p>
+        <code className="block break-all rounded-lg bg-slate-950 p-3">{window.location.origin}/?clockInvite={invite.code}</code>
+        <button className={button} onClick={async () => { const link = `${window.location.origin}/?clockInvite=${invite.code}`; try { await navigator.clipboard.writeText(link); setMessage('Link de convite copiado.'); } catch { setMessage('Selecione e copie o link exibido.'); } }}>Copiar link</button>
+        <p>O funcionário abre o link e entra ou cria a conta com o e-mail autorizado. Também pode usar o Google se a conta Google tiver esse mesmo e-mail.</p>
       </div>}
     </details>}
 
