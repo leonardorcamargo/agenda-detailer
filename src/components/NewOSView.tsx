@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { ServiceOrder, ServiceItem, DamagePoint, OSService, OSProjectStep, PaymentMethod } from '../types';
 import { supabase } from '../lib/supabase';
 import { VehicleInspectionDiagram } from './VehicleInspectionDiagram';
+import { escapeIlikeTerm, normalizePlate, resolveVehicleCustomer } from '../lib/customerVehicleSelection';
 import { 
   Search, 
   Sparkles, 
@@ -28,6 +29,9 @@ interface NewOSViewProps {
   onCancel: () => void;
 }
 
+type CustomerSearchResult = { id: string; name: string; phone: string | null };
+type CustomerVehicle = { id: string; plate: string; brand: string | null; model: string | null; color: string | null; year: string | null };
+
 export const NewOSView: React.FC<NewOSViewProps> = ({
   companyId,
   servicesCatalog,
@@ -44,6 +48,13 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   const [lookupMessage, setLookupMessage] = useState<string | null>(null);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerResults, setCustomerResults] = useState<CustomerSearchResult[]>([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
+  const [customerVehicles, setCustomerVehicles] = useState<CustomerVehicle[]>([]);
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
+  const [customerLookupBusy, setCustomerLookupBusy] = useState(false);
+  const customerRequest = useRef(0);
 
   // 2. Inspection State
   const [fuelLevel, setFuelLevel] = useState<'Reserva' | '1/4' | 'Meio Tanque' | '3/4' | 'Cheio'>('Meio Tanque');
@@ -90,9 +101,99 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
     setSelectedServices(selectedServices.filter((s) => s.serviceId !== serviceId));
   };
 
+  const applyVehicle = (vehicle: CustomerVehicle) => {
+    setSelectedVehicleId(vehicle.id);
+    setPlate(vehicle.plate);
+    setBrand(vehicle.brand ?? '');
+    setModel(vehicle.model ?? '');
+    setColor(vehicle.color ?? '');
+    setYear(vehicle.year ?? '');
+    setLookupMessage('Veículo selecionado para este cliente.');
+  };
+
+  const loadCustomerVehicles = async (customerId: string) => {
+    const { data, error } = await supabase
+      .from('vehicles')
+      .select('id, plate, brand, model, color, year')
+      .eq('company_id', companyId)
+      .eq('customer_id', customerId)
+      .eq('active', true)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data ?? []) as CustomerVehicle[];
+  };
+
+  const selectCustomer = async (customer: CustomerSearchResult) => {
+    const request = ++customerRequest.current;
+    setSelectedCustomerId(customer.id);
+    setSelectedVehicleId(null);
+    setClientName(customer.name);
+    setClientPhone(customer.phone ?? '');
+    setCustomerResults([]);
+    setCustomerLookupBusy(true);
+    setLookupMessage('Cliente localizado. Escolha um veículo ou informe outro carro.');
+    try {
+      const vehicles = await loadCustomerVehicles(customer.id);
+      if (customerRequest.current === request) setCustomerVehicles(vehicles);
+    } catch (error) {
+      console.error('Erro ao carregar veículos do cliente.', error);
+      if (customerRequest.current === request) {
+        setCustomerVehicles([]);
+        setLookupMessage('Cliente localizado, mas não foi possível carregar os veículos agora.');
+      }
+    } finally {
+      if (customerRequest.current === request) setCustomerLookupBusy(false);
+    }
+  };
+
+  const handleConsultarCliente = async () => {
+    const term = customerSearch.trim();
+    if (term.length < 2) {
+      setLookupMessage('Digite pelo menos 2 letras do nome do cliente.');
+      return;
+    }
+    const request = ++customerRequest.current;
+    setCustomerLookupBusy(true);
+    setCustomerResults([]);
+    const escapedTerm = escapeIlikeTerm(term);
+    const { data, error } = await supabase
+      .from('customers')
+      .select('id, name, phone')
+      .eq('company_id', companyId)
+      .eq('active', true)
+      .ilike('name', `%${escapedTerm}%`)
+      .order('name')
+      .limit(10);
+    if (customerRequest.current !== request) return;
+    setCustomerLookupBusy(false);
+    if (error) {
+      console.error('Erro ao consultar cliente.', error);
+      setLookupMessage('Não foi possível consultar clientes agora.');
+      return;
+    }
+    const results = (data ?? []) as CustomerSearchResult[];
+    setCustomerResults(results);
+    if (!results.length && !selectedCustomerId) {
+      setClientName(term);
+      setClientPhone('');
+    }
+    setLookupMessage(results.length ? 'Selecione o cliente correto abaixo.' : 'Cliente não encontrado. Preencha os dados para cadastrá-lo.');
+  };
+
+  const handleOutroVeiculo = () => {
+    setSelectedVehicleId(null);
+    setPlate('');
+    setBrand('');
+    setModel('');
+    setColor('');
+    setYear('');
+    setLookupMessage('Informe os dados do outro veículo. O cliente selecionado será mantido.');
+  };
+
   // Consulta a placa no cadastro real da empresa
   const handleConsultarPlaca = async () => {
-    const cleanPlate = plate.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const request = ++customerRequest.current;
+    const cleanPlate = normalizePlate(plate);
     if (!cleanPlate) {
       setLookupMessage('Por favor, informe uma placa para consultar.');
       return;
@@ -106,6 +207,8 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
       .eq('active', true)
       .maybeSingle();
 
+    if (customerRequest.current !== request) return;
+
     if (error) {
       console.error('Erro ao consultar veículo.', error);
       setLookupMessage('Não foi possível consultar a placa agora.');
@@ -117,8 +220,11 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
       setModel('');
       setColor('');
       setYear('');
-      setClientName('');
-      setClientPhone('');
+      setSelectedVehicleId(null);
+      if (!selectedCustomerId) {
+        setClientName('');
+        setClientPhone('');
+      }
       setLookupMessage('Veículo não encontrado no cadastro. Preencha os dados para um novo veículo.');
       return;
     }
@@ -128,10 +234,23 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
     setModel(vehicle.model ?? '');
     setColor(vehicle.color ?? '');
     setYear(vehicle.year ?? '');
+    setSelectedVehicleId(vehicle.id);
 
     const customer = Array.isArray(vehicle.customer) ? vehicle.customer[0] : vehicle.customer;
     setClientName(customer?.name ?? '');
     setClientPhone(customer?.phone ?? '');
+    setSelectedCustomerId(vehicle.customer_id ?? null);
+    if (vehicle.customer_id) {
+      try {
+        const vehicles = await loadCustomerVehicles(vehicle.customer_id);
+        if (customerRequest.current === request) setCustomerVehicles(vehicles);
+      } catch (vehiclesError) {
+        console.error('Erro ao carregar outros veículos do cliente.', vehiclesError);
+        if (customerRequest.current === request) setCustomerVehicles([]);
+      }
+    } else {
+      setCustomerVehicles([]);
+    }
     setLookupMessage('Veículo localizado no cadastro da empresa.');
   };
 
@@ -200,7 +319,7 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
       return;
     }
 
-    const cleanPlate = plate.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const cleanPlate = normalizePlate(plate);
     const cleanClientName = clientName.trim();
     const cleanClientPhone = clientPhone.trim();
 
@@ -209,11 +328,11 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
       return;
     }
 
-    let customerId: string | null = null;
+    let customerId: string | null = selectedCustomerId;
 
     const { data: vehicleOwnerLookup, error: vehicleOwnerLookupError } = await supabase
       .from('vehicles')
-      .select('customer_id')
+      .select('id, customer_id')
       .eq('company_id', companyId)
       .eq('plate', cleanPlate)
       .limit(1)
@@ -225,7 +344,18 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
       return;
     }
 
-    customerId = vehicleOwnerLookup?.customer_id ?? null;
+    if (vehicleOwnerLookup?.customer_id && !selectedCustomerId && selectedVehicleId !== vehicleOwnerLookup.id) {
+      setLookupMessage('Esta placa já está cadastrada. Clique em “Consultar placa” para conferir o cliente antes de continuar.');
+      return;
+    }
+
+    const ownership = resolveVehicleCustomer(customerId, vehicleOwnerLookup?.customer_id ?? null);
+    if (ownership.conflict) {
+      setLookupMessage('Esta placa está vinculada a outro cliente. Consulte a placa para conferir o proprietário antes de continuar.');
+      return;
+    }
+
+    customerId = ownership.customerId;
 
     if (customerId) {
       const { error: updateCustomerError } = await supabase
@@ -468,6 +598,100 @@ const realOSNumber = lastOrder?.os_number
           Identificação do veículo
         </h3>
 
+        <div className="rounded-xl border border-[#283854] bg-[#101827] p-4 space-y-3">
+          <label className="block text-xs font-medium text-slate-300">
+            Consultar cliente pelo nome
+          </label>
+          <div className="flex flex-col sm:flex-row items-stretch gap-3">
+            <input
+              type="search"
+              value={customerSearch}
+              onChange={(e) => setCustomerSearch(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void handleConsultarCliente();
+                }
+              }}
+              placeholder="Ex: João Paulo"
+              className="min-w-0 flex-1 bg-[#1a2436] border border-[#283854] text-white px-4 py-2.5 rounded-xl text-base sm:text-sm focus:outline-none focus:border-blue-500"
+            />
+            <button
+              type="button"
+              disabled={customerLookupBusy}
+              onClick={() => void handleConsultarCliente()}
+              className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-medium text-white disabled:opacity-50"
+            >
+              <Search className="w-4 h-4" />
+              {customerLookupBusy ? 'Consultando…' : 'Consultar cliente'}
+            </button>
+          </div>
+
+          {!!customerResults.length && (
+            <div className="space-y-2" role="list" aria-label="Clientes encontrados">
+              {customerResults.map((customer) => (
+                <button
+                  type="button"
+                  role="listitem"
+                  key={customer.id}
+                  onClick={() => void selectCustomer(customer)}
+                  className="flex min-h-11 w-full items-center justify-between gap-3 rounded-lg border border-[#283854] bg-[#1a2436] px-3 py-2 text-left text-sm text-white hover:border-blue-500"
+                >
+                  <span className="min-w-0 break-words font-medium">{customer.name}</span>
+                  <span className="shrink-0 text-xs text-slate-400">{customer.phone || 'Sem contato'}</span>
+                </button>
+              ))}
+              {customerResults.length === 10 && <p className="text-xs text-amber-300">Mostrando os 10 primeiros resultados. Digite mais letras para refinar.</p>}
+            </div>
+          )}
+
+          {selectedCustomerId && (
+            <div className="space-y-3 rounded-lg border border-blue-500/40 bg-blue-950/20 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm text-blue-100"><strong>Cliente selecionado:</strong> {clientName}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    ++customerRequest.current;
+                    setSelectedCustomerId(null);
+                    setSelectedVehicleId(null);
+                    setCustomerVehicles([]);
+                    setClientName('');
+                    setClientPhone('');
+                    setLookupMessage('Seleção removida. Consulte outro cliente ou preencha um novo.');
+                  }}
+                  className="text-xs text-blue-300 underline"
+                >
+                  Trocar cliente
+                </button>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {customerVehicles.map((vehicle) => (
+                  <button
+                    type="button"
+                    key={vehicle.id}
+                    onClick={() => applyVehicle(vehicle)}
+                    className={`min-h-11 rounded-lg border p-3 text-left text-xs ${selectedVehicleId === vehicle.id ? 'border-blue-400 bg-blue-600/20 text-white' : 'border-[#34445f] bg-[#1a2436] text-slate-200'}`}
+                  >
+                    <strong className="block text-sm">{vehicle.plate}</strong>
+                    {[vehicle.brand, vehicle.model, vehicle.color, vehicle.year].filter(Boolean).join(' · ') || 'Dados não informados'}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={handleOutroVeiculo}
+                  className={`min-h-11 rounded-lg border border-dashed p-3 text-left text-xs ${!selectedVehicleId ? 'border-emerald-400 bg-emerald-950/30 text-emerald-200' : 'border-[#46617f] text-blue-300'}`}
+                >
+                  <Plus className="mb-1 h-4 w-4" />
+                  <strong>Usar outro veículo</strong>
+                  <span className="block mt-1">Cadastrar ou localizar pela placa mantendo este cliente.</span>
+                </button>
+              </div>
+              {!customerVehicles.length && !customerLookupBusy && <p className="text-xs text-slate-400">Nenhum veículo ativo cadastrado para este cliente. Use “outro veículo”.</p>}
+            </div>
+          )}
+        </div>
+
         {/* Digitar placa & Consultar placa */}
         <div>
           <label className="block text-xs font-medium text-slate-300 mb-1.5">
@@ -477,7 +701,10 @@ const realOSNumber = lastOrder?.os_number
             <input
               type="text"
               value={plate}
-              onChange={(e) => setPlate(e.target.value.toUpperCase())}
+              onChange={(e) => {
+                setPlate(e.target.value.toUpperCase());
+                setSelectedVehicleId(null);
+              }}
               placeholder="ABC1234"
               className="flex-1 bg-[#1a2436] border border-[#283854] text-white px-4 py-2.5 rounded-xl font-mono text-sm tracking-wider uppercase focus:outline-none focus:border-blue-500 transition-colors"
             />
@@ -1009,4 +1236,3 @@ const realOSNumber = lastOrder?.os_number
     </form>
   );
 };
-
