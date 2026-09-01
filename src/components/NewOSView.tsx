@@ -3,6 +3,7 @@ import { ServiceOrder, ServiceItem, DamagePoint, OSService, OSProjectStep, Payme
 import { supabase } from '../lib/supabase';
 import { VehicleInspectionDiagram } from './VehicleInspectionDiagram';
 import { escapeIlikeTerm, normalizePlate, resolveVehicleCustomer } from '../lib/customerVehicleSelection';
+import { buildServiceUsage, mostUsedServiceKeys, serviceUsageKey, sortServicesByUsage } from '../lib/serviceFrequency';
 import { 
   Search, 
   Sparkles, 
@@ -24,6 +25,7 @@ import {
 interface NewOSViewProps {
   companyId: string;
   servicesCatalog: ServiceItem[];
+  orders: ServiceOrder[];
   nextOSNumber: number;
   onSaveOS: (order: ServiceOrder) => void;
   onCancel: () => void;
@@ -35,6 +37,7 @@ type CustomerVehicle = { id: string; plate: string; brand: string | null; model:
 export const NewOSView: React.FC<NewOSViewProps> = ({
   companyId,
   servicesCatalog,
+  orders,
   nextOSNumber,
   onSaveOS,
   onCancel,
@@ -277,9 +280,12 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
     return [...defaultCats, ...cats];
   }, [servicesCatalog]);
 
+  const serviceUsage = useMemo(() => buildServiceUsage(orders), [orders]);
+  const highlightedServiceKeys = useMemo(() => mostUsedServiceKeys(serviceUsage), [serviceUsage]);
+
   // Filtered Services in New OS
   const filteredServicesCatalog = useMemo(() => {
-    return servicesCatalog.filter((service) => {
+    const matchingServices = servicesCatalog.filter((service) => {
       const q = serviceSearchQuery.toLowerCase().trim();
       const matchQuery =
         !q ||
@@ -291,7 +297,8 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
         serviceCategoryFilter === 'Todas' || service.category === serviceCategoryFilter;
       return matchQuery && matchCategory;
     });
-  }, [servicesCatalog, serviceSearchQuery, serviceCategoryFilter]);
+    return sortServicesByUsage(matchingServices, serviceUsage);
+  }, [servicesCatalog, serviceSearchQuery, serviceCategoryFilter, serviceUsage]);
 
   // Calculation
   let finalServices = [...selectedServices];
@@ -861,7 +868,7 @@ const realOSNumber = lastOrder?.os_number
               Serviços e valores
             </h3>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              Selecione os serviços do catálogo ou busque por nome, categoria e procedimentos.
+              Os mais utilizados aparecem primeiro. Você também pode buscar por nome, categoria e procedimentos.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -945,6 +952,8 @@ const realOSNumber = lastOrder?.os_number
           {filteredServicesCatalog.map((service) => {
             const isSelected = selectedServices.some((s) => s.serviceId === service.id);
             const currentSelected = selectedServices.find((s) => s.serviceId === service.id);
+            const usage = serviceUsage[serviceUsageKey(service.name)];
+            const isHighlighted = highlightedServiceKeys.has(serviceUsageKey(service.name));
 
             return (
               <div
@@ -971,6 +980,12 @@ const realOSNumber = lastOrder?.os_number
                     <p className="text-[11px] text-slate-400 line-clamp-2">{service.description}</p>
                   )}
                   <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                    {isHighlighted && usage && (
+                      <span className="text-[9px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/25 px-1.5 py-0.5 rounded flex items-center gap-1">
+                        <Sparkles className="w-2.5 h-2.5" />
+                        {usage.count > 1 ? `Mais solicitado · ${usage.count} OS` : 'Usado recentemente · 1 OS'}
+                      </span>
+                    )}
                     <span className="text-[9px] font-bold bg-blue-500/10 text-blue-300 border border-blue-500/20 px-1.5 py-0.5 rounded">
                       {service.category}
                     </span>

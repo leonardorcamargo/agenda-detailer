@@ -1,6 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { brazilDate } from '../lib/financialPeriod';
 import { escapeIlikeTerm } from '../lib/customerVehicleSelection';
+import { buildServiceUsage, mostUsedServiceKeys, serviceUsageKey, sortServicesByUsage } from '../lib/serviceFrequency';
 import { StaffAttendance } from './StaffAttendance';
 import { supabase } from '../lib/supabase';
 import { 
@@ -94,6 +95,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Selected Date Panel sub-tab
   const [dateDetailTab, setDateDetailTab] = useState<'agendamentos' | 'observacoes' | 'presenca'>(initialAttendanceDate ? 'presenca' : 'agendamentos');
+  const serviceUsage = useMemo(() => buildServiceUsage(orders), [orders]);
+  const orderedServicesCatalog = useMemo(
+    () => sortServicesByUsage(servicesCatalog, serviceUsage),
+    [servicesCatalog, serviceUsage]
+  );
+  const highlightedServiceKeys = useMemo(() => mostUsedServiceKeys(serviceUsage), [serviceUsage]);
 
   // Modals state
   const [isAptModalOpen, setIsAptModalOpen] = useState(false);
@@ -1258,9 +1265,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 <label className="block text-xs font-bold text-slate-300">
                   Selecione os Serviços do Catálogo
                 </label>
+                <p className="text-[10px] text-slate-400">Os serviços mais utilizados aparecem primeiro.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-[#111827] p-2.5 rounded-xl border border-[#23314a] max-h-36 overflow-y-auto">
-                  {servicesCatalog.map((svc) => {
+                  {orderedServicesCatalog.map((svc) => {
                     const isChecked = (aptForm.services || []).includes(svc.name);
+                    const usage = serviceUsage[serviceUsageKey(svc.name)];
+                    const isHighlighted = highlightedServiceKeys.has(serviceUsageKey(svc.name));
                     return (
                       <label
                         key={svc.id}
@@ -1293,6 +1303,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                             className="rounded border-slate-700 text-blue-600"
                           />
                           <span className="truncate">{svc.name}</span>
+                          {isHighlighted && usage && (
+                            <span className="text-[9px] text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded px-1.5 py-0.5 whitespace-nowrap">
+                              {usage.count > 1 ? `${usage.count} OS` : 'Recente'}
+                            </span>
+                          )}
                         </div>
                         <span className="text-[10px] text-amber-400 font-extrabold shrink-0">
                           R$ {svc.defaultPrice}
