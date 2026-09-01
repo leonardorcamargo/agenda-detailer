@@ -40,6 +40,8 @@ import { CatalogView } from './components/CatalogView';
 import { SettingsView } from './components/SettingsView';
 import { OSDetailModal } from './components/OSDetailModal';
 import { AuthView } from './components/AuthView';
+import { BusinessOnboarding } from './components/BusinessOnboarding';
+import { isModuleEnabled, isTabEnabled, normalizeBusinessAreas, normalizeBusinessModules } from './lib/businessProfile';
 import { QuickStockOutflowModal } from './components/QuickStockOutflowModal';
 import { PurchaseOrderModal } from './components/PurchaseOrderModal';
 
@@ -210,7 +212,7 @@ export default function App() {
       if (!membership) return;
       const { data: company, error: companyError } = await supabase
         .from('companies')
-        .select('id, name, subtitle, shop_category, phone, email, address, pix_key, owner_name, logo_url, accent_color, document, instagram')
+        .select('id, name, subtitle, shop_category, phone, email, address, pix_key, owner_name, logo_url, accent_color, document, instagram, business_areas, enabled_modules, onboarding_completed')
         .eq('id', membership.company_id)
         .eq('active', true)
         .maybeSingle();
@@ -235,6 +237,9 @@ export default function App() {
         accentColor: (company.accent_color ?? 'blue') as ShopSettings['accentColor'],
         cnpjCpf: company.document ?? '',
         instagram: company.instagram ?? '',
+        businessAreas: normalizeBusinessAreas(company.business_areas ?? []),
+        enabledModules: normalizeBusinessModules(company.enabled_modules),
+        onboardingCompleted: Boolean(company.onboarding_completed),
       });
     };
 
@@ -244,6 +249,29 @@ export default function App() {
   }, [authUserId]);
 
   const isManagement = ['owner','admin','manager'].includes(currentRole || '');
+  const canConfigureCompany = ['owner','admin'].includes(currentRole || '');
+  const enabledModules = normalizeBusinessModules(shopSettings.enabledModules);
+  const saveShopSettings = async (nextSettings: ShopSettings) => {
+    if (!companyId || !canConfigureCompany || !nextSettings.id) return false;
+    const businessAreas = normalizeBusinessAreas(nextSettings.businessAreas ?? []);
+    if (!businessAreas.length) { setIdentityError('Escolha pelo menos uma área de atuação.'); return false; }
+    const normalizedModules = normalizeBusinessModules(nextSettings.enabledModules);
+    const { error } = await supabase.from('companies').update({
+      name: nextSettings.name.trim(), subtitle: nextSettings.subtitle.trim(), shop_category: nextSettings.shopCategory ?? null,
+      phone: nextSettings.phone.trim(), email: nextSettings.email?.trim() || null, address: nextSettings.address.trim(),
+      pix_key: nextSettings.pixKey.trim(), owner_name: nextSettings.ownerName.trim(), logo_url: nextSettings.logoUrl || null,
+      accent_color: nextSettings.accentColor ?? 'blue', document: nextSettings.cnpjCpf?.trim() || null,
+      instagram: nextSettings.instagram?.trim() || null, business_areas: businessAreas,
+      enabled_modules: normalizedModules, onboarding_completed: Boolean(nextSettings.onboardingCompleted), updated_at: new Date().toISOString(),
+    }).eq('id', companyId);
+    if (error) { setIdentityError('Não foi possível salvar as configurações da empresa.'); return false; }
+    setIdentityError('');
+    setShopSettings({ ...nextSettings, businessAreas, enabledModules: normalizedModules });
+    return true;
+  };
+  useEffect(() => {
+    if (!isTabEnabled(shopSettings.enabledModules, activeTab)) setActiveTab('dashboard');
+  }, [activeTab, shopSettings.enabledModules]);
   const team = useTeam(isAuthenticated && isManagement ? companyId : '', currentRole);
   const clock = useClock(authUserId, companyId, sessionReady && companyReady && resolvedUserId === authUserId);
   const { staffList, staffWorkLogs } = team;
@@ -858,6 +886,10 @@ export default function App() {
   }} />;
   if (!sessionReady || (isAuthenticated && (!companyReady || resolvedUserId !== authUserId))) return <div className="min-h-dvh bg-slate-950 p-6 text-white">Verificando seu acesso…</div>;
   if (!isAuthenticated) return <AuthView />;
+  if (companyId && !shopSettings.onboardingCompleted) {
+    if (canConfigureCompany) return <BusinessOnboarding settings={shopSettings} onComplete={saveShopSettings} onLogout={() => void logout()} />;
+    return <div className="min-h-dvh bg-slate-950 p-6 text-white"><p>O proprietário precisa concluir a configuração inicial da empresa.</p><button onClick={() => void logout()} className="mt-4 text-blue-300 underline">Sair da conta</button></div>;
+  }
   if (!companyId || !isManagement) return <div className="min-h-dvh bg-slate-950 p-4 text-white">
     <div className="mx-auto max-w-3xl">
       <button onClick={() => void logout()} className="mb-4 text-blue-300 underline">Sair da conta</button>
@@ -876,6 +908,7 @@ export default function App() {
         {/* Left Sidebar Navigation & Mobile Drawer / Bottom Nav */}
         <Sidebar
           settings={shopSettings}
+          enabledModules={enabledModules}
           activeTab={activeTab}
           setActiveTab={(tab) => {
             setAttendanceDate(undefined);
@@ -939,11 +972,12 @@ export default function App() {
                 ? 'Anotações rápidas para não esquecer o que importa'
                 : 'Configurações de identidade visual, logo e dados cadastrais'
             }
-            onNewOSClick={() => setActiveTab('nova-os')}
+            onNewOSClick={isModuleEnabled(enabledModules, 'ordens_servico') ? () => setActiveTab('nova-os') : undefined}
             carsInYardCount={carsInYardCount}
+            showYard={isModuleEnabled(enabledModules, 'patio')}
             lowStockCount={lowStockCount}
-            onOpenQuickStockOutflow={() => setIsQuickStockModalOpen(true)}
-            onOpenPurchaseOrder={() => setIsPurchaseOrderModalOpen(true)}
+            onOpenQuickStockOutflow={isModuleEnabled(enabledModules, 'catalogo') ? () => setIsQuickStockModalOpen(true) : undefined}
+            onOpenPurchaseOrder={isModuleEnabled(enabledModules, 'catalogo') ? () => setIsPurchaseOrderModalOpen(true) : undefined}
             isMobileMenuOpen={isMobileMenuOpen}
             onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           />
@@ -975,7 +1009,7 @@ export default function App() {
           {/* Shared footer below the views reserves space for mobile navigation. */}
           <div className="flex-1 pb-6 md:pb-10">
             {activeTab === 'ponto' && <ClockView clock={clock} staffList={staffList} />}
-            <ClockAlerts clock={clock} onOpen={() => setActiveTab('ponto')} />
+            {isModuleEnabled(enabledModules, 'equipe') && <ClockAlerts clock={clock} onOpen={() => setActiveTab('ponto')} />}
             {activeTab === 'dashboard' && (
               <DashboardView
                 orders={orders}
@@ -1134,7 +1168,8 @@ export default function App() {
             {activeTab === 'configuracoes' && (
               <SettingsView
                 settings={shopSettings}
-                onSaveSettings={setShopSettings}
+                onSaveSettings={saveShopSettings}
+                canConfigureBusiness={canConfigureCompany}
                 servicesCatalog={servicesCatalog}
                 onAddCatalogService={handleAddCatalogService}
                 onRemoveCatalogService={handleRemoveCatalogService}
