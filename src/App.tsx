@@ -53,6 +53,7 @@ export default function App() {
   const [companyReady, setCompanyReady] = useState(false);
   const [resolvedUserId, setResolvedUserId] = useState('');
   const [identityError, setIdentityError] = useState('');
+  const [accessMessage, setAccessMessage] = useState('');
   useEffect(() => {
     let cancelled = false;
     let authEventSeen = false;
@@ -66,6 +67,29 @@ export default function App() {
     });
     return () => { cancelled = true; subscription.unsubscribe(); };
   }, []);
+  useEffect(() => {
+    if (!authUserId) return;
+    const url = new URL(window.location.href);
+    const code = (url.searchParams.get('clockInvite') || '').trim().toLowerCase();
+    if (!code) return;
+    let cancelled = false;
+    const clearInviteFromAddress = () => {
+      url.searchParams.delete('clockInvite');
+      window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+    };
+    if (!/^[0-9a-f]{64}$/.test(code)) {
+      setAccessMessage('O link de convite é inválido. Peça um novo ao administrador.');
+      clearInviteFromAddress();
+      return;
+    }
+    setAccessMessage('Validando sua autorização…');
+    void supabase.rpc('employee_clock', { p_action: 'activate', p_data: { code } }).then(({ error }) => {
+      if (cancelled) return;
+      setAccessMessage(error ? 'Não foi possível usar este convite. Confira se entrou com o e-mail autorizado ou peça um novo link.' : 'Autorização confirmada. Seu ponto está disponível.');
+      clearInviteFromAddress();
+    });
+    return () => { cancelled = true; };
+  }, [authUserId]);
   const logout = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) alert('Não foi possível encerrar a sessão. Confira a conexão e tente novamente.');
@@ -827,6 +851,7 @@ export default function App() {
     <div className="mx-auto max-w-3xl">
       <button onClick={() => void logout()} className="mb-4 text-blue-300 underline">Sair da conta</button>
       {identityError && <p role="alert">{identityError}</p>}
+      {accessMessage && <p role="status" className="mb-4 rounded-lg bg-blue-950 p-3 text-blue-200">{accessMessage}</p>}
       <ClockView clock={clock} staffList={[]} />
     </div>
   </div>;
