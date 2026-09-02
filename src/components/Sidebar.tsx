@@ -1,5 +1,6 @@
 import React from 'react';
 import { ShopSettings } from '../types';
+import { BusinessModule, isModuleEnabled } from '../lib/businessProfile';
 import {
   LayoutDashboard,
   FilePlus,
@@ -10,12 +11,13 @@ import {
   Layers,
   Flame,
   Settings,
+  Scale,
   StickyNote,
   LogOut,
   X
 } from 'lucide-react';
 
-export type ActiveTab = 'ponto' | 'dashboard' | 'agendamento' | 'nova-os' | 'patio' | 'clientes' | 'financeiro' | 'mao-de-obra' | 'catalogo' | 'combos' | 'lembretes' | 'configuracoes';
+export type ActiveTab = 'ponto' | 'dashboard' | 'agendamento' | 'nova-os' | 'patio' | 'clientes' | 'financeiro' | 'mao-de-obra' | 'catalogo' | 'combos' | 'lembretes' | 'legal' | 'configuracoes';
 
 interface SidebarProps {
   settings: ShopSettings;
@@ -25,6 +27,7 @@ interface SidebarProps {
   pendingCount: number;
   isMobileOpen?: boolean;
   onCloseMobile?: () => void;
+  enabledModules?: BusinessModule[];
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -35,23 +38,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
   pendingCount,
   isMobileOpen,
   onCloseMobile,
+  enabledModules,
 }) => {
-  const menuItems: { id: ActiveTab; label: string; shortLabel: string; icon: React.FC<{ className?: string }>; badge?: number }[] = [
+  const menuItems: { id: ActiveTab; label: string; shortLabel: string; icon: React.FC<{ className?: string }>; badge?: number; module?: BusinessModule }[] = [
     { id: 'dashboard', label: 'Dashboard', shortLabel: 'Inicio', icon: LayoutDashboard },
-    { id: 'agendamento', label: 'Agenda & Agendamentos', shortLabel: 'Agenda', icon: Calendar },
-    { id: 'nova-os', label: 'Nova Ordem de Serviço', shortLabel: 'Nova OS', icon: FilePlus },
-    { id: 'patio', label: 'Pátio (Kanban)', shortLabel: 'Pátio', icon: Car, badge: pendingCount > 0 ? pendingCount : undefined },
-    { id: 'clientes', label: 'Clientes', shortLabel: 'Clientes', icon: Users },
-    { id: 'financeiro', label: 'Financeiro', shortLabel: 'Finanças', icon: Wallet },
-    { id: 'ponto', label: 'Ponto da equipe', shortLabel: 'Ponto', icon: Calendar },
-    { id: 'mao-de-obra', label: 'Equipe', shortLabel: 'Equipe', icon: Users },
-    { id: 'catalogo', label: 'Catálogo', shortLabel: 'Catálogo', icon: Layers },
-    { id: 'combos', label: 'Combos & Pacotes', shortLabel: 'Combos', icon: Flame },
-    { id: 'lembretes', label: 'Lembretes', shortLabel: 'Lembretes', icon: StickyNote },
+    { id: 'agendamento', label: 'Agenda & Agendamentos', shortLabel: 'Agenda', icon: Calendar, module: 'agenda' },
+    { id: 'nova-os', label: 'Nova Ordem de Serviço', shortLabel: 'Nova OS', icon: FilePlus, module: 'ordens_servico' },
+    { id: 'patio', label: 'Pátio (Kanban)', shortLabel: 'Pátio', icon: Car, badge: pendingCount > 0 ? pendingCount : undefined, module: 'patio' },
+    { id: 'clientes', label: 'Clientes', shortLabel: 'Clientes', icon: Users, module: 'clientes' },
+    { id: 'financeiro', label: 'Financeiro', shortLabel: 'Finanças', icon: Wallet, module: 'financeiro' },
+    { id: 'ponto', label: 'Ponto da equipe', shortLabel: 'Ponto', icon: Calendar, module: 'equipe' },
+    { id: 'mao-de-obra', label: 'Equipe', shortLabel: 'Equipe', icon: Users, module: 'equipe' },
+    { id: 'catalogo', label: 'Catálogo', shortLabel: 'Catálogo', icon: Layers, module: 'catalogo' },
+    { id: 'combos', label: 'Combos & Pacotes', shortLabel: 'Combos', icon: Flame, module: 'combos' },
+    { id: 'lembretes', label: 'Lembretes', shortLabel: 'Lembretes', icon: StickyNote, module: 'lembretes' },
+    { id: 'legal', label: 'Legal e Privacidade', shortLabel: 'Legal', icon: Scale },
     { id: 'configuracoes', label: 'Configurações do Perfil', shortLabel: 'Perfil', icon: Settings },
   ];
+  const visibleMenuItems = menuItems.filter((item) => !item.module || isModuleEnabled(enabledModules, item.module));
 
-  const mobileQuickItems = menuItems.filter((item) =>
+  const mobileQuickItems = visibleMenuItems.filter((item) =>
     item.id === 'agendamento' || item.id === 'nova-os' || item.id === 'patio' || item.id === 'lembretes'
   );
 
@@ -100,7 +106,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         <nav className="p-3 space-y-1 mt-1">
-          {menuItems.map((item) => {
+          {visibleMenuItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             return (

@@ -27,6 +27,7 @@ import {
 
 import { Header } from './components/Header';
 import { AgendaDetailerFooter } from './components/AgendaDetailerBrand';
+import { LegalView } from './components/LegalView';
 import { Sidebar, ActiveTab } from './components/Sidebar';
 import { DashboardView } from './components/DashboardView';
 import { CalendarView } from './components/CalendarView';
@@ -40,6 +41,9 @@ import { CatalogView } from './components/CatalogView';
 import { SettingsView } from './components/SettingsView';
 import { OSDetailModal } from './components/OSDetailModal';
 import { AuthView } from './components/AuthView';
+import { BusinessOnboarding } from './components/BusinessOnboarding';
+import { UserGuide } from './components/UserGuide';
+import { isModuleEnabled, isTabEnabled, normalizeBusinessAreas, normalizeBusinessModules } from './lib/businessProfile';
 import { QuickStockOutflowModal } from './components/QuickStockOutflowModal';
 import { PurchaseOrderModal } from './components/PurchaseOrderModal';
 
@@ -53,6 +57,11 @@ export default function App() {
   const [companyReady, setCompanyReady] = useState(false);
   const [resolvedUserId, setResolvedUserId] = useState('');
   const [identityError, setIdentityError] = useState('');
+  const [accessMessage, setAccessMessage] = useState('');
+  const [isUserGuideOpen, setIsUserGuideOpen] = useState(false);
+  const [passwordRecovery, setPasswordRecovery] = useState(
+    () => new URLSearchParams(window.location.hash.slice(1)).get('type') === 'recovery'
+  );
   useEffect(() => {
     let cancelled = false;
     let authEventSeen = false;
@@ -60,12 +69,39 @@ export default function App() {
       if (cancelled) return;
       setIsAuthenticated(!!session); setAuthUserId(session?.user?.id || ''); setSessionReady(true);
     };
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => { authEventSeen = true; apply(session); });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      authEventSeen = true;
+      if (event === 'PASSWORD_RECOVERY') setPasswordRecovery(true);
+      apply(session);
+    });
     void supabase.auth.getSession().then(({ data, error }) => {
       if (!cancelled && !authEventSeen) { if (error) setIdentityError('Não foi possível verificar a sessão.'); apply(data.session); }
     });
     return () => { cancelled = true; subscription.unsubscribe(); };
   }, []);
+  useEffect(() => {
+    if (!authUserId) return;
+    const url = new URL(window.location.href);
+    const code = (url.searchParams.get('clockInvite') || '').trim().toLowerCase();
+    if (!code) return;
+    let cancelled = false;
+    const clearInviteFromAddress = () => {
+      url.searchParams.delete('clockInvite');
+      window.history.replaceState({}, '', url.pathname + url.search + url.hash);
+    };
+    if (!/^[0-9a-f]{64}$/.test(code)) {
+      setAccessMessage('O link de convite é inválido. Peça um novo ao administrador.');
+      clearInviteFromAddress();
+      return;
+    }
+    setAccessMessage('Validando sua autorização…');
+    void supabase.rpc('employee_clock', { p_action: 'activate', p_data: { code } }).then(({ error }) => {
+      if (cancelled) return;
+      setAccessMessage(error ? 'Não foi possível usar este convite. Confira se entrou com o e-mail autorizado ou peça um novo link.' : 'Autorização confirmada. Seu ponto está disponível.');
+      clearInviteFromAddress();
+    });
+    return () => { cancelled = true; };
+  }, [authUserId]);
   const logout = async () => {
     const { error } = await supabase.auth.signOut();
     if (error) alert('Não foi possível encerrar a sessão. Confira a conexão e tente novamente.');
@@ -179,7 +215,7 @@ export default function App() {
       if (!membership) return;
       const { data: company, error: companyError } = await supabase
         .from('companies')
-        .select('id, name, subtitle, shop_category, phone, email, address, pix_key, owner_name, logo_url, accent_color, document, instagram')
+        .select('id, name, subtitle, shop_category, phone, email, address, pix_key, owner_name, logo_url, accent_color, document, instagram, business_areas, enabled_modules, onboarding_completed')
         .eq('id', membership.company_id)
         .eq('active', true)
         .maybeSingle();
@@ -204,6 +240,9 @@ export default function App() {
         accentColor: (company.accent_color ?? 'blue') as ShopSettings['accentColor'],
         cnpjCpf: company.document ?? '',
         instagram: company.instagram ?? '',
+        businessAreas: normalizeBusinessAreas(company.business_areas ?? []),
+        enabledModules: normalizeBusinessModules(company.enabled_modules),
+        onboardingCompleted: Boolean(company.onboarding_completed),
       });
     };
 
@@ -213,6 +252,29 @@ export default function App() {
   }, [authUserId]);
 
   const isManagement = ['owner','admin','manager'].includes(currentRole || '');
+  const canConfigureCompany = ['owner','admin'].includes(currentRole || '');
+  const enabledModules = normalizeBusinessModules(shopSettings.enabledModules);
+  const saveShopSettings = async (nextSettings: ShopSettings) => {
+    if (!companyId || !canConfigureCompany || !nextSettings.id) return false;
+    const businessAreas = normalizeBusinessAreas(nextSettings.businessAreas ?? []);
+    if (!businessAreas.length) { setIdentityError('Escolha pelo menos uma área de atuação.'); return false; }
+    const normalizedModules = normalizeBusinessModules(nextSettings.enabledModules);
+    const { error } = await supabase.from('companies').update({
+      name: nextSettings.name.trim(), subtitle: nextSettings.subtitle.trim(), shop_category: nextSettings.shopCategory ?? null,
+      phone: nextSettings.phone.trim(), email: nextSettings.email?.trim() || null, address: nextSettings.address.trim(),
+      pix_key: nextSettings.pixKey.trim(), owner_name: nextSettings.ownerName.trim(), logo_url: nextSettings.logoUrl || null,
+      accent_color: nextSettings.accentColor ?? 'blue', document: nextSettings.cnpjCpf?.trim() || null,
+      instagram: nextSettings.instagram?.trim() || null, business_areas: businessAreas,
+      enabled_modules: normalizedModules, onboarding_completed: Boolean(nextSettings.onboardingCompleted), updated_at: new Date().toISOString(),
+    }).eq('id', companyId);
+    if (error) { setIdentityError('Não foi possível salvar as configurações da empresa.'); return false; }
+    setIdentityError('');
+    setShopSettings({ ...nextSettings, businessAreas, enabledModules: normalizedModules });
+    return true;
+  };
+  useEffect(() => {
+    if (!isTabEnabled(shopSettings.enabledModules, activeTab)) setActiveTab('dashboard');
+  }, [activeTab, shopSettings.enabledModules]);
   const team = useTeam(isAuthenticated && isManagement ? companyId : '', currentRole);
   const clock = useClock(authUserId, companyId, sessionReady && companyReady && resolvedUserId === authUserId);
   const { staffList, staffWorkLogs } = team;
@@ -820,19 +882,44 @@ export default function App() {
     setCombosCatalog(combosCatalog.filter((c) => c.id !== id));
   };
 
+  const guideStorageKey = authUserId && companyId ? `agenda-detailer:guide:${authUserId}:${companyId}` : '';
+
+  useEffect(() => {
+    if (!companyReady || !shopSettings.onboardingCompleted || !guideStorageKey) return;
+    if (window.localStorage.getItem(guideStorageKey) !== 'completed') setIsUserGuideOpen(true);
+  }, [companyReady, guideStorageKey, shopSettings.onboardingCompleted]);
+
   // If not authenticated, render Login view with tenant selection
+  if (passwordRecovery) return <AuthView passwordRecovery onPasswordRecoveryComplete={() => {
+    setPasswordRecovery(false);
+    window.history.replaceState({}, '', window.location.pathname + window.location.search);
+  }} />;
   if (!sessionReady || (isAuthenticated && (!companyReady || resolvedUserId !== authUserId))) return <div className="min-h-dvh bg-slate-950 p-6 text-white">Verificando seu acesso…</div>;
   if (!isAuthenticated) return <AuthView />;
+  if (companyId && !shopSettings.onboardingCompleted) {
+    if (canConfigureCompany) return <BusinessOnboarding settings={shopSettings} onComplete={saveShopSettings} onLogout={() => void logout()} />;
+    return <div className="min-h-dvh bg-slate-950 p-6 text-white"><p>O proprietário precisa concluir a configuração inicial da empresa.</p><button onClick={() => void logout()} className="mt-4 text-blue-300 underline">Sair da conta</button></div>;
+  }
   if (!companyId || !isManagement) return <div className="min-h-dvh bg-slate-950 p-4 text-white">
     <div className="mx-auto max-w-3xl">
       <button onClick={() => void logout()} className="mb-4 text-blue-300 underline">Sair da conta</button>
       {identityError && <p role="alert">{identityError}</p>}
+      {accessMessage && <p role="status" className="mb-4 rounded-lg bg-blue-950 p-3 text-blue-200">{accessMessage}</p>}
       <ClockView clock={clock} staffList={[]} />
     </div>
   </div>;
 
   // Yard active cars count
   const carsInYardCount = orders.filter((o) => o.status !== 'Pronto para Entrega').length;
+  const closeUserGuide = () => {
+    if (guideStorageKey) window.localStorage.setItem(guideStorageKey, 'completed');
+    setIsUserGuideOpen(false);
+  };
+
+  const navigateFromGuide = (tab: ActiveTab) => {
+    setActiveTab(tab);
+    closeUserGuide();
+  };
 
   return (
     <div className="app-shell min-h-screen bg-[#0d121f] text-slate-100 flex flex-col font-sans antialiased selection:bg-blue-500 selection:text-white">
@@ -840,6 +927,7 @@ export default function App() {
         {/* Left Sidebar Navigation & Mobile Drawer / Bottom Nav */}
         <Sidebar
           settings={shopSettings}
+          enabledModules={enabledModules}
           activeTab={activeTab}
           setActiveTab={(tab) => {
             setAttendanceDate(undefined);
@@ -878,6 +966,8 @@ export default function App() {
                 ? 'Combos & Pacotes Promocionais'
                 : activeTab === 'lembretes'
                 ? 'Lembretes'
+                : activeTab === 'legal'
+                ? 'Legal e Privacidade'
                 : 'Configurações do Perfil'
             }
             activeViewSubtitle={
@@ -901,13 +991,17 @@ export default function App() {
                 ? 'Crie pacotes com desconto, gere propagandas para WhatsApp e divulgue nas redes sociais'
                 : activeTab === 'lembretes'
                 ? 'Anotações rápidas para não esquecer o que importa'
+                : activeTab === 'legal'
+                ? 'Termos de uso, proteção de dados e responsabilidades'
                 : 'Configurações de identidade visual, logo e dados cadastrais'
             }
-            onNewOSClick={() => setActiveTab('nova-os')}
+            onNewOSClick={isModuleEnabled(enabledModules, 'ordens_servico') ? () => setActiveTab('nova-os') : undefined}
+            onOpenGuide={() => setIsUserGuideOpen(true)}
             carsInYardCount={carsInYardCount}
+            showYard={isModuleEnabled(enabledModules, 'patio')}
             lowStockCount={lowStockCount}
-            onOpenQuickStockOutflow={() => setIsQuickStockModalOpen(true)}
-            onOpenPurchaseOrder={() => setIsPurchaseOrderModalOpen(true)}
+            onOpenQuickStockOutflow={isModuleEnabled(enabledModules, 'catalogo') ? () => setIsQuickStockModalOpen(true) : undefined}
+            onOpenPurchaseOrder={isModuleEnabled(enabledModules, 'catalogo') ? () => setIsPurchaseOrderModalOpen(true) : undefined}
             isMobileMenuOpen={isMobileMenuOpen}
             onToggleMobileMenu={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           />
@@ -939,7 +1033,7 @@ export default function App() {
           {/* Shared footer below the views reserves space for mobile navigation. */}
           <div className="flex-1 pb-6 md:pb-10">
             {activeTab === 'ponto' && <ClockView clock={clock} staffList={staffList} />}
-            <ClockAlerts clock={clock} onOpen={() => setActiveTab('ponto')} />
+            {isModuleEnabled(enabledModules, 'equipe') && <ClockAlerts clock={clock} onOpen={() => setActiveTab('ponto')} />}
             {activeTab === 'dashboard' && (
               <DashboardView
                 orders={orders}
@@ -985,6 +1079,7 @@ export default function App() {
               <NewOSView
                 companyId={companyId}
                 servicesCatalog={servicesCatalog}
+                orders={orders}
                 nextOSNumber={nextOSNumber}
                 onSaveOS={handleSaveNewOS}
                 onCancel={() => setActiveTab('dashboard')}
@@ -1094,19 +1189,24 @@ export default function App() {
               <RemindersView key={companyId} companyId={companyId} role={currentRole} />
             )}
 
+            {activeTab === 'legal' && <LegalView />}
+
             {activeTab === 'configuracoes' && (
               <SettingsView
                 settings={shopSettings}
-                onSaveSettings={setShopSettings}
+                onSaveSettings={saveShopSettings}
+                canConfigureBusiness={canConfigureCompany}
                 servicesCatalog={servicesCatalog}
                 onAddCatalogService={handleAddCatalogService}
                 onRemoveCatalogService={handleRemoveCatalogService}
               />
             )}
           </div>
-          <AgendaDetailerFooter />
+          <AgendaDetailerFooter onOpenLegal={() => setActiveTab('legal')} />
         </main>
       </div>
+
+      {isUserGuideOpen && <UserGuide onClose={closeUserGuide} onNavigate={navigateFromGuide} />}
 
       {/* OS Detail Modal */}
       {selectedOrderForModal && (

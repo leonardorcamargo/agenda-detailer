@@ -1,19 +1,21 @@
 import React from 'react';
 import { ShopSettings } from '../types';
-import { Wrench, PlusCircle, Menu, X, Zap, AlertTriangle } from 'lucide-react';
+import { Wrench, PlusCircle, Menu, X, Zap, AlertTriangle, CircleHelp } from 'lucide-react';
 import { AgendaDetailerMark } from './AgendaDetailerBrand';
 
 interface HeaderProps {
   settings: ShopSettings;
   activeViewTitle: string;
   activeViewSubtitle?: string;
-  onNewOSClick: () => void;
+  onNewOSClick?: () => void;
+  onOpenGuide?: () => void;
   carsInYardCount: number;
   lowStockCount?: number;
   onOpenQuickStockOutflow?: () => void;
   onOpenPurchaseOrder?: () => void;
   isMobileMenuOpen?: boolean;
   onToggleMobileMenu?: () => void;
+  showYard?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -21,12 +23,14 @@ export const Header: React.FC<HeaderProps> = ({
   activeViewTitle,
   activeViewSubtitle,
   onNewOSClick,
+  onOpenGuide,
   carsInYardCount,
   lowStockCount = 0,
   onOpenQuickStockOutflow,
   onOpenPurchaseOrder,
   isMobileMenuOpen,
   onToggleMobileMenu,
+  showYard = true,
 }) => {
   return (
     <header className="h-16 min-w-0 w-full shrink-0 bg-[#111827] border-b border-[#1f293d] px-3 sm:px-6 flex items-center justify-between gap-2 sticky top-0 z-20">
@@ -68,13 +72,13 @@ export const Header: React.FC<HeaderProps> = ({
         )}
 
         {/* Quick Yard Indicator */}
-        <div className="hidden lg:flex items-center gap-2 bg-[#172236] border border-[#23314a] px-3 py-1.5 rounded-xl text-xs text-slate-300">
+        {showYard && <div className="hidden lg:flex items-center gap-2 bg-[#172236] border border-[#23314a] px-3 py-1.5 rounded-xl text-xs text-slate-300">
           <Wrench className="w-3.5 h-3.5 text-blue-400" />
           <span>No Pátio:</span>
           <span className="font-extrabold text-white bg-blue-600 px-2 py-0.5 rounded-md text-[11px]">
             {carsInYardCount}
           </span>
-        </div>
+        </div>}
 
         {/* Baixa Flash Button (3 Clicks) */}
         {onOpenQuickStockOutflow && (
@@ -90,7 +94,7 @@ export const Header: React.FC<HeaderProps> = ({
         )}
 
         {/* Quick New OS Button */}
-        <button
+        {onNewOSClick && <button
           onClick={onNewOSClick}
           className="flex items-center justify-center gap-1.5 lg:gap-2 w-10 h-10 lg:w-auto lg:h-auto bg-blue-600 hover:bg-blue-500 text-white font-medium text-xs lg:px-3.5 lg:py-2 rounded-xl transition-all shadow-sm shadow-blue-900/30 cursor-pointer"
           title="Nova ordem de serviço"
@@ -98,7 +102,19 @@ export const Header: React.FC<HeaderProps> = ({
           <PlusCircle className="w-4 h-4" />
           <span className="hidden lg:inline">Nova OS</span>
           <span className="sr-only lg:hidden">Nova ordem de serviço</span>
-        </button>
+        </button>}
+
+        {onOpenGuide && (
+          <button
+            type="button"
+            onClick={onOpenGuide}
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#2b3e61] bg-[#172236] text-blue-300 transition-colors hover:bg-blue-500/15 hover:text-blue-200"
+            title="Abrir guia de uso"
+            aria-label="Abrir guia de uso"
+          >
+            <CircleHelp className="h-5 w-5" />
+          </button>
+        )}
 
         {/* Platform brand; user identity remains in the sidebar menu. */}
         <div className="flex items-center pl-1.5 lg:pl-2 border-l border-[#26334d]" title="Agenda Detailer">

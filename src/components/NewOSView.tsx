@@ -3,6 +3,9 @@ import { ServiceOrder, ServiceItem, DamagePoint, OSService, OSProjectStep, Payme
 import { supabase } from '../lib/supabase';
 import { VehicleInspectionDiagram } from './VehicleInspectionDiagram';
 import { escapeIlikeTerm, normalizePlate, resolveVehicleCustomer } from '../lib/customerVehicleSelection';
+import { buildServiceUsage, mostUsedServiceKeys, serviceUsageKey, sortServicesByUsage } from '../lib/serviceFrequency';
+import { buildTermSnapshot, ENGINE_SERVICE_TERM, GENERAL_SERVICE_TERM, requiresEngineTerm } from '../legal/legalContent';
+import { getOsReadiness, pendingOsReadiness } from '../lib/osReadiness';
 import { 
   Search, 
   Sparkles, 
@@ -24,6 +27,7 @@ import {
 interface NewOSViewProps {
   companyId: string;
   servicesCatalog: ServiceItem[];
+  orders: ServiceOrder[];
   nextOSNumber: number;
   onSaveOS: (order: ServiceOrder) => void;
   onCancel: () => void;
@@ -35,6 +39,7 @@ type CustomerVehicle = { id: string; plate: string; brand: string | null; model:
 export const NewOSView: React.FC<NewOSViewProps> = ({
   companyId,
   servicesCatalog,
+  orders,
   nextOSNumber,
   onSaveOS,
   onCancel,
@@ -83,6 +88,9 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
   const [customDescription, setCustomDescription] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Pendente');
   const [paymentStatus, setPaymentStatus] = useState<'Pago' | 'Pendente' | 'Parcial' | 'Fiado'>('Pendente');
+  const [generalTermAccepted, setGeneralTermAccepted] = useState(false);
+  const [engineTermAccepted, setEngineTermAccepted] = useState(false);
+  const [termResponsibleName, setTermResponsibleName] = useState('');
 
   const handleAddCustomService = () => {
     if (!customServiceName.trim()) return;
@@ -277,9 +285,12 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
     return [...defaultCats, ...cats];
   }, [servicesCatalog]);
 
+  const serviceUsage = useMemo(() => buildServiceUsage(orders), [orders]);
+  const highlightedServiceKeys = useMemo(() => mostUsedServiceKeys(serviceUsage), [serviceUsage]);
+
   // Filtered Services in New OS
   const filteredServicesCatalog = useMemo(() => {
-    return servicesCatalog.filter((service) => {
+    const matchingServices = servicesCatalog.filter((service) => {
       const q = serviceSearchQuery.toLowerCase().trim();
       const matchQuery =
         !q ||
@@ -291,7 +302,8 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
         serviceCategoryFilter === 'Todas' || service.category === serviceCategoryFilter;
       return matchQuery && matchCategory;
     });
-  }, [servicesCatalog, serviceSearchQuery, serviceCategoryFilter]);
+    return sortServicesByUsage(matchingServices, serviceUsage);
+  }, [servicesCatalog, serviceSearchQuery, serviceCategoryFilter, serviceUsage]);
 
   // Calculation
   let finalServices = [...selectedServices];
@@ -309,10 +321,28 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
 
   const subtotal = finalServices.reduce((acc, s) => acc + (s.price || 0), 0);
   const totalValue = Math.max(0, subtotal - discount);
+  const engineTermRequired = requiresEngineTerm(finalServices.map((service) => service.name));
+  const readinessItems = getOsReadiness({
+    companyId,
+    clientName,
+    plate,
+    serviceCount: finalServices.length,
+    engineTermRequired,
+    engineTermAccepted,
+    anyTermAccepted: generalTermAccepted || engineTermAccepted,
+    termResponsibleName,
+  });
+  const pendingItems = pendingOsReadiness(readinessItems);
 
   // Submit Handler
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (pendingItems.length > 0) {
+      setLookupMessage(`Antes de concluir: ${pendingItems.map((item) => item.hint).join(' ')}`);
+      document.getElementById('os-readiness')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
 
     if (!companyId) {
       setLookupMessage('Empresa não identificada. Entre novamente no sistema.');
@@ -327,6 +357,23 @@ export const NewOSView: React.FC<NewOSViewProps> = ({
       setLookupMessage('Informe ao menos a placa e o nome do cliente.');
       return;
     }
+
+    if (engineTermRequired && !engineTermAccepted) {
+      setLookupMessage('O termo de limpeza ou lavagem de motor deve ser confirmado antes de concluir a OS.');
+      return;
+    }
+
+    if ((generalTermAccepted || engineTermAccepted) && !termResponsibleName.trim()) {
+      setLookupMessage('Informe o nome de quem confirmou o termo de responsabilidade.');
+      return;
+    }
+
+    const termSnapshot = buildTermSnapshot({
+      generalAccepted: generalTermAccepted,
+      engineAccepted: engineTermAccepted,
+      responsibleName: termResponsibleName,
+    });
+    const descriptionWithTerms = [customDescription.trim(), termSnapshot].filter(Boolean).join('\n\n');
 
     let customerId: string | null = selectedCustomerId;
 
@@ -512,7 +559,7 @@ const realOSNumber = lastOrder?.os_number
         vehicle_id: vehicleId,
         os_number: realOSNumber,
         status: 'Aguardando',
-        custom_description: customDescription.trim() || null,
+        custom_description: descriptionWithTerms || null,
         discount,
         total_value: totalValue,
         payment_method: paymentMethod,
@@ -572,7 +619,7 @@ const realOSNumber = lastOrder?.os_number
       services: finalServices,
       discount,
       totalValue,
-      customDescription,
+      customDescription: descriptionWithTerms,
       projectSteps: [],
       paymentMethod,
       paymentStatus,
@@ -590,6 +637,30 @@ const realOSNumber = lastOrder?.os_number
           A OS recebe numeração sequencial automática (#{nextOSNumber}) e entra no pátio como "Aguardando".
         </p>
       </div>
+
+      <section id="os-readiness" className={`rounded-2xl border p-4 ${pendingItems.length ? 'border-amber-500/35 bg-amber-950/10' : 'border-emerald-500/30 bg-emerald-950/10'}`} aria-live="polite">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="text-sm font-bold text-white">{pendingItems.length ? `Faltam ${pendingItems.length} item(ns) para concluir` : 'Pronto para concluir a OS'}</h3>
+            <p className="mt-1 text-xs text-slate-400">Use esta lista para não esquecer nenhuma informação obrigatória.</p>
+          </div>
+          <span className={`rounded-full px-3 py-1 text-xs font-bold ${pendingItems.length ? 'bg-amber-500/15 text-amber-300' : 'bg-emerald-500/15 text-emerald-300'}`}>
+            {readinessItems.length - pendingItems.length}/{readinessItems.length} prontos
+          </span>
+        </div>
+        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+          {readinessItems.map((item) => (
+            <div key={item.id} className="flex items-start gap-2 rounded-lg bg-[#111827]/80 px-3 py-2">
+              {item.ready ? <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" /> : <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />}
+              <div>
+                <p className={`text-xs font-semibold ${item.ready ? 'text-slate-200' : 'text-amber-200'}`}>{item.label}</p>
+                {!item.ready && <p className="mt-0.5 text-[11px] leading-4 text-slate-400">{item.hint}</p>}
+              </div>
+            </div>
+          ))}
+        </div>
+        {lookupMessage && <p role="alert" className="mt-3 rounded-lg border border-blue-500/25 bg-blue-950/30 px-3 py-2 text-xs leading-5 text-blue-200">{lookupMessage}</p>}
+      </section>
 
       {/* SECTION 1: Identificação do veículo (Matching Screenshot 3) */}
       <div className="bg-[#141c2b] border border-[#23314a] rounded-2xl p-5 space-y-4">
@@ -861,7 +932,7 @@ const realOSNumber = lastOrder?.os_number
               Serviços e valores
             </h3>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              Selecione os serviços do catálogo ou busque por nome, categoria e procedimentos.
+              Os mais utilizados aparecem primeiro. Você também pode buscar por nome, categoria e procedimentos.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -945,6 +1016,8 @@ const realOSNumber = lastOrder?.os_number
           {filteredServicesCatalog.map((service) => {
             const isSelected = selectedServices.some((s) => s.serviceId === service.id);
             const currentSelected = selectedServices.find((s) => s.serviceId === service.id);
+            const usage = serviceUsage[serviceUsageKey(service.name)];
+            const isHighlighted = highlightedServiceKeys.has(serviceUsageKey(service.name));
 
             return (
               <div
@@ -971,6 +1044,12 @@ const realOSNumber = lastOrder?.os_number
                     <p className="text-[11px] text-slate-400 line-clamp-2">{service.description}</p>
                   )}
                   <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                    {isHighlighted && usage && (
+                      <span className="text-[9px] font-bold bg-amber-500/10 text-amber-300 border border-amber-500/25 px-1.5 py-0.5 rounded flex items-center gap-1">
+                        <Sparkles className="w-2.5 h-2.5" />
+                        {usage.count > 1 ? `Mais solicitado · ${usage.count} OS` : 'Usado recentemente · 1 OS'}
+                      </span>
+                    )}
                     <span className="text-[9px] font-bold bg-blue-500/10 text-blue-300 border border-blue-500/20 px-1.5 py-0.5 rounded">
                       {service.category}
                     </span>
@@ -1213,6 +1292,40 @@ const realOSNumber = lastOrder?.os_number
         </div>
       </div>
 
+      <div className="rounded-2xl border border-amber-500/25 bg-[#141c2b] p-5 space-y-4">
+        <div>
+          <h3 className="text-sm font-bold text-white">Termos de responsabilidade</h3>
+          <p className="mt-1 text-xs leading-5 text-slate-400">Confirme somente após apresentar o texto ao cliente. O aceite será registrado junto às observações da OS.</p>
+        </div>
+
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[#2b3e61] bg-[#121929] p-3">
+          <input type="checkbox" checked={generalTermAccepted} onChange={(event) => setGeneralTermAccepted(event.target.checked)} className="mt-1 h-4 w-4" />
+          <span>
+            <span className="block text-xs font-semibold text-slate-100">{GENERAL_SERVICE_TERM.title} (opcional)</span>
+            <span className="mt-1 block text-[11px] leading-5 text-slate-400">{GENERAL_SERVICE_TERM.text}</span>
+          </span>
+        </label>
+
+        {engineTermRequired && (
+          <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-rose-500/40 bg-rose-950/15 p-3">
+            <input type="checkbox" checked={engineTermAccepted} onChange={(event) => setEngineTermAccepted(event.target.checked)} className="mt-1 h-4 w-4" />
+            <span>
+              <span className="block text-xs font-semibold text-rose-200">{ENGINE_SERVICE_TERM.title} (obrigatório)</span>
+              <span className="mt-1 block text-[11px] leading-5 text-slate-300">{ENGINE_SERVICE_TERM.text}</span>
+            </span>
+          </label>
+        )}
+
+        {(generalTermAccepted || engineTermAccepted) && (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-300">Nome de quem confirmou o termo *</label>
+            <input type="text" value={termResponsibleName} onChange={(event) => setTermResponsibleName(event.target.value)} placeholder="Nome completo do cliente ou responsável" className="w-full rounded-xl border border-[#2b3e61] bg-[#121929] px-3 py-2.5 text-sm text-white focus:border-blue-500 focus:outline-none" />
+          </div>
+        )}
+
+        <p className="text-[11px] leading-5 text-amber-300">Modelos provisórios. Substitua pelos textos definitivos e obtenha revisão jurídica antes do lançamento comercial.</p>
+      </div>
+
       {/* Floating Bottom Action Bar */}
       <div className="fixed bottom-[58px] md:bottom-0 left-0 right-0 bg-[#0f172a]/95 backdrop-blur border-t border-[#1f293d] p-3.5 sm:p-4 z-30 shadow-2xl">
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-4">
@@ -1229,7 +1342,7 @@ const realOSNumber = lastOrder?.os_number
             className="bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-sm px-6 py-3 rounded-xl transition-all shadow-lg shadow-emerald-950/60 flex items-center gap-2 cursor-pointer"
           >
             <CheckCircle className="w-5 h-5" />
-            <span>Concluir</span>
+            <span>{pendingItems.length ? `Conferir pendências (${pendingItems.length})` : 'Concluir OS'}</span>
           </button>
         </div>
       </div>

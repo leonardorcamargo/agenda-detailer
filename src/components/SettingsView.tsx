@@ -1,5 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { ShopSettings, ServiceItem } from '../types';
+import { BusinessProfileFields } from './BusinessProfileFields';
+import { normalizeBusinessAreas, normalizeBusinessModules } from '../lib/businessProfile';
 import { 
   Settings, 
   Store, 
@@ -23,7 +25,8 @@ import {
 
 interface SettingsViewProps {
   settings: ShopSettings;
-  onSaveSettings: (newSettings: ShopSettings) => void;
+  onSaveSettings: (newSettings: ShopSettings) => Promise<boolean>;
+  canConfigureBusiness: boolean;
   servicesCatalog: ServiceItem[];
   onAddCatalogService: (service: ServiceItem) => void;
   onRemoveCatalogService: (id: string) => void;
@@ -32,6 +35,7 @@ interface SettingsViewProps {
 export const SettingsView: React.FC<SettingsViewProps> = ({
   settings,
   onSaveSettings,
+  canConfigureBusiness,
   servicesCatalog,
   onAddCatalogService,
   onRemoveCatalogService,
@@ -39,6 +43,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   // Form State
   const [formData, setFormData] = useState<ShopSettings>(settings);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   // New Service Catalog Form
   const [newServiceName, setNewServiceName] = useState('');
@@ -58,9 +64,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     );
   }, [servicesCatalog, serviceSearch]);
 
-  const handleSubmitSettings = (e: React.FormEvent) => {
+  const handleSubmitSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSaveSettings(formData);
+    setSaving(true); setSaveError('');
+    const saved = await onSaveSettings(formData);
+    setSaving(false);
+    if (!saved) { setSaveError('Não foi possível salvar as configurações. Confira sua permissão e conexão.'); return; }
     setSavedSuccess(true);
     setTimeout(() => setSavedSuccess(false), 3000);
   };
@@ -256,6 +265,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               <option value="Oficina Mecânica">Oficina Mecânica</option>
               <option value="Funilaria e Pintura">Funilaria e Pintura</option>
               <option value="Lava Jato & Estética">Lava Jato & Estética</option>
+              <option value="Centro Automotivo">Centro Automotivo</option>
+              <option value="Loja de Acessórios">Loja de Acessórios</option>
+              <option value="Pneus e Alinhamento">Pneus e Alinhamento</option>
+              <option value="Operação Híbrida">Operação Híbrida</option>
             </select>
           </div>
 
@@ -356,11 +369,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
 
+        <div className="md:col-span-2 rounded-2xl border border-[#283854] bg-[#111827] p-4">
+          <BusinessProfileFields
+            areas={normalizeBusinessAreas(formData.businessAreas ?? [])}
+            modules={normalizeBusinessModules(formData.enabledModules)}
+            onAreasChange={(businessAreas) => setFormData({ ...formData, businessAreas })}
+            onModulesChange={(enabledModules) => setFormData({ ...formData, enabledModules })}
+            disabled={!canConfigureBusiness || saving}
+          />
+          {!canConfigureBusiness && <p className="mt-3 text-xs text-amber-300">Somente proprietário ou administrador pode alterar áreas e recursos.</p>}
+        </div>
+
+        {saveError && <p role="alert" className="md:col-span-2 rounded-xl bg-rose-950 p-3 text-xs text-rose-200">{saveError}</p>}
+
         <button
           type="submit"
+          disabled={saving}
           className="bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-6 py-3 rounded-xl transition-all shadow-lg shadow-blue-900/40 flex items-center gap-2 cursor-pointer"
         >
-          <Save className="w-4 h-4" /> Salvar Identidade da Loja
+          <Save className="w-4 h-4" /> {saving ? 'Salvando…' : 'Salvar configurações'}
         </button>
       </form>
 

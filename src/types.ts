@@ -137,7 +137,7 @@ export interface ShopSettings {
   id?: string;
   name: string;
   subtitle: string;
-  shopCategory?: 'Estética Automotiva' | 'Studio Detailer' | 'Lava Rápido Premium' | 'Oficina Mecânica' | 'Funilaria e Pintura' | 'Lava Jato & Estética';
+  shopCategory?: 'Estética Automotiva' | 'Studio Detailer' | 'Lava Rápido Premium' | 'Oficina Mecânica' | 'Funilaria e Pintura' | 'Lava Jato & Estética' | 'Centro Automotivo' | 'Loja de Acessórios' | 'Pneus e Alinhamento' | 'Operação Híbrida';
   phone: string;
   address: string;
   pixKey: string;
@@ -147,6 +147,9 @@ export interface ShopSettings {
   accentColor?: 'blue' | 'emerald' | 'amber' | 'purple' | 'rose';
   cnpjCpf?: string;
   instagram?: string;
+  businessAreas?: string[];
+  enabledModules?: import('./lib/businessProfile').BusinessModule[];
+  onboardingCompleted?: boolean;
 }
 
 export interface SaaSUserTenant {
@@ -213,4 +216,3 @@ export interface StaffWorkLog {
   dailyRateCharged?: number;
   notes?: string;
 }
-
