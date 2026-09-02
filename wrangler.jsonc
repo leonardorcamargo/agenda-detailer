@@ -1,0 +1,6 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "agenda-detailer",
+  "compatibility_date": "2026-09-01",
+  "main": "./src/main.tsx",
+}
