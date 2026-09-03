@@ -45,7 +45,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ passwordRecovery = false, on
   return <main className="min-h-dvh bg-[#0d121f] p-5 text-white flex items-center justify-center">
     <section className="w-full max-w-md space-y-5 rounded-2xl border border-slate-700 bg-slate-900 p-6">
       <h1 className="text-2xl font-bold">Agenda Detailer</h1>
-      <h2>{passwordRecovery ? 'Criar nova senha' : forgotPassword ? 'Recuperar senha' : signup ? 'Criar conta' : 'Entrar'}</h2>
+      <h2>{passwordRecovery ? 'Criar nova senha' : forgotPassword ? 'Recuperar senha' : signup ? 'Criar conta' : 'teste'}</h2>
       {inviteCode && !passwordRecovery && <p className="rounded-lg bg-blue-950 p-3 text-sm text-blue-200">Convite identificado. Entre ou crie a conta usando o mesmo e-mail autorizado pelo administrador.</p>}
       <form onSubmit={submit} className="space-y-4">
         {!passwordRecovery && <label className="block text-sm">E-mail<input type="email" autoComplete="username" required disabled={busy} value={email} onChange={e => setEmail(e.target.value)} className="mt-1 w-full rounded-lg bg-slate-800 p-3 text-base" /></label>}
